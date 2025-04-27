@@ -1,6 +1,8 @@
-# KEMac - OCR and Macro Control Web Application
+# KEMac - Kori's RNG Macro
 
-A web-based application for real-time screen monitoring and OCR (Optical Character Recognition) processing, designed to automate tasks based on text detection in specified screen regions.
+A web based macro for the Roblox Game [Kori's RNG](https://www.roblox.com/games/75221514607466)
+
+This is very basic i don't plan on doing advanced macro, feel free to take this as a base, i know it is badly coded
 
 ## Features
 
@@ -54,7 +56,3 @@ Debug images showing the OCR processing steps are saved in the `settings/debug/`
 ## License
 
 This project is provided for educational and personal use.
-
-## Author
-
-KEMac Team
