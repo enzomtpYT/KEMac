@@ -1,0 +1,993 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Macro Control Panel</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            text-align: center;
+        }
+        h1, h2 {
+            color: #333;
+        }
+        .control-panel {
+            display: flex;
+            justify-content: center;
+            gap: 20px;
+            margin-top: 30px;
+            margin-bottom: 30px;
+        }
+        button {
+            padding: 10px 20px;
+            font-size: 16px;
+            cursor: pointer;
+            border: none;
+            border-radius: 5px;
+            transition: background-color 0.3s;
+        }
+        #start-btn {
+            background-color: #4CAF50;
+            color: white;
+        }
+        #pause-btn {
+            background-color: #FF9800;
+            color: white;
+        }
+        #stop-btn {
+            background-color: #F44336;
+            color: white;
+        }
+        button:hover {
+            opacity: 0.8;
+        }
+        button:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+        .status {
+            margin-top: 30px;
+            padding: 10px;
+            border-radius: 5px;
+            font-weight: bold;
+            margin-bottom: 30px;
+        }
+        .running {
+            background-color: #e7f7e7;
+            color: #4CAF50;
+        }
+        .paused {
+            background-color: #fff8e1;
+            color: #FF9800;
+        }
+        .stopped {
+            background-color: #ffebee;
+            color: #F44336;
+        }
+        .section {
+            border-top: 1px solid #ddd;
+            padding-top: 20px;
+            margin-top: 20px;
+            text-align: left;
+        }
+        .tabs {
+            display: flex;
+            margin-bottom: 20px;
+        }
+        .tab {
+            padding: 10px 20px;
+            cursor: pointer;
+            border: 1px solid #ddd;
+            border-radius: 5px 5px 0 0;
+            margin-right: 5px;
+            background-color: #f5f5f5;
+        }
+        .tab.active {
+            background-color: #fff;
+            border-bottom: none;
+            font-weight: bold;
+        }
+        .tab-content {
+            display: none;
+            padding: 20px;
+            border: 1px solid #ddd;
+        }
+        .tab-content.active {
+            display: block;
+        }
+        #screenshotContainer {
+            position: relative;
+            margin: 20px auto;
+            max-width: 100%;
+            overflow: auto;
+            border: 1px solid #ddd;
+        }
+        #screenshotImg {
+            max-width: 100%;
+            display: block;
+            user-select: none;
+            -webkit-user-drag: none;
+            -khtml-user-drag: none;
+            -moz-user-drag: none;
+            -o-user-drag: none;
+            pointer-events: auto;
+        }
+        #selectionBox {
+            position: absolute;
+            border: 2px dashed #ff0000;
+            background-color: rgba(255, 0, 0, 0.1);
+            display: none;
+            pointer-events: none;
+        }
+        .regions-list {
+            margin-top: 20px;
+        }
+        .region-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 10px;
+            border: 1px solid #ddd;
+            margin-bottom: 10px;
+            border-radius: 5px;
+        }
+        .region-delete {
+            color: white;
+            background-color: #F44336;
+            padding: 5px 10px;
+            border-radius: 3px;
+            cursor: pointer;
+        }
+        .form-group {
+            margin-bottom: 15px;
+        }
+        label {
+            display: block;
+            margin-bottom: 5px;
+        }
+        input[type="text"] {
+            width: 300px;
+            padding: 8px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+        }
+        .toggle {
+            position: relative;
+            display: inline-block;
+            width: 60px;
+            height: 34px;
+            margin-right: 10px;
+        }
+        .toggle input {
+            opacity: 0;
+            width: 0;
+            height: 0;
+        }
+        .slider {
+            position: absolute;
+            cursor: pointer;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-color: #ccc;
+            transition: .4s;
+            border-radius: 34px;
+        }
+        .slider:before {
+            position: absolute;
+            content: "";
+            height: 26px;
+            width: 26px;
+            left: 4px;
+            bottom: 4px;
+            background-color: white;
+            transition: .4s;
+            border-radius: 50%;
+        }
+        input:checked + .slider {
+            background-color: #4CAF50;
+        }
+        input:focus + .slider {
+            box-shadow: 0 0 1px #4CAF50;
+        }
+        input:checked + .slider:before {
+            transform: translateX(26px);
+        }
+        .button-green {
+            background-color: #4CAF50;
+            color: white;
+            cursor: pointer;
+        }
+        .button-blue {
+            background-color: #2196F3;
+            color: white;
+            cursor: pointer;
+        }
+        .coordinates {
+            font-size: 12px;
+            color: #666;
+            margin-top: 5px;
+        }
+        .ocr-results {
+            margin-top: 20px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            padding: 15px;
+            background-color: #f9f9f9;
+            display: none;
+        }
+        .result-item {
+            margin-bottom: 15px;
+            border-bottom: 1px solid #eee;
+            padding-bottom: 15px;
+        }
+        .result-name {
+            font-weight: bold;
+            color: #333;
+            margin-bottom: 5px;
+        }
+        .result-text {
+            background-color: white;
+            padding: 10px;
+            border: 1px solid #eee;
+            border-radius: 3px;
+            white-space: pre-wrap;
+            font-family: monospace;
+            min-height: 40px;
+        }
+        .refresh-btn {
+            margin-top: 10px;
+            background-color: #2196F3;
+            color: white;
+            cursor: pointer;
+        }
+        .ocr-live-section {
+            margin-top: 30px;
+            border-top: 1px solid #ddd;
+            padding-top: 15px;
+        }
+        
+        .screenshot-container {
+            position: relative;
+            margin: 20px auto;
+            max-width: 100%;
+            border: 1px solid #ddd;
+            min-height: 200px;
+        }
+        
+        #live-screenshot {
+            max-width: 100%;
+            display: block;
+            user-select: none;
+            -webkit-user-drag: none;
+            -khtml-user-drag: none;
+            -moz-user-drag: none;
+            -o-user-drag: none;
+            pointer-events: none;
+        }
+        
+        .loading-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(255, 255, 255, 0.7);
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            z-index: 10;
+        }
+        
+        .spinner {
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #3498db;
+            border-radius: 50%;
+            width: 30px;
+            height: 30px;
+            animation: spin 1s linear infinite;
+            margin-bottom: 10px;
+        }
+        
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        
+        .ocr-control-panel {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-top: 10px;
+        }
+        
+        .auto-refresh {
+            display: flex;
+            align-items: center;
+        }
+        
+        .auto-refresh input {
+            margin-right: 5px;
+        }
+
+        /* Additional styles for WebSocket connection status */
+        .connection-status {
+            display: flex;
+            align-items: center;
+        }
+        
+        #connection-indicator {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            display: inline-block;
+            margin-right: 5px;
+        }
+        
+        #connection-indicator.connected {
+            background-color: #4CAF50;
+        }
+        
+        #connection-indicator.disconnected {
+            background-color: #F44336;
+        }
+        
+        #timestamp-display {
+            font-size: 12px;
+            color: #666;
+            margin-bottom: 10px;
+        }
+    </style>
+    <script src="https://cdn.socket.io/4.6.0/socket.io.min.js"></script>
+</head>
+<body>
+    <h1>Macro Control Panel</h1>
+    
+    <div class="tabs">
+        <div class="tab active" onclick="switchTab('control')">Macro Control</div>
+        <div class="tab" onclick="switchTab('ocr-settings')">OCR Settings</div>
+    </div>
+    
+    <div id="control-tab" class="tab-content active">
+        <p>Use the buttons below to control your macro</p>
+        
+        <div class="control-panel">
+            <button id="start-btn" onclick="controlMacro('start')">Start</button>
+            <button id="pause-btn" onclick="controlMacro('pause')" disabled>Pause</button>
+            <button id="stop-btn" onclick="controlMacro('stop')" disabled>Stop</button>
+        </div>
+        
+        <div id="status-display" class="status stopped">
+            Status: Stopped
+        </div>
+        
+        <!-- Live OCR results with highlighted screenshot -->
+        <div id="live-ocr-section" class="ocr-live-section">
+            <h3>Live OCR Results</h3>
+            <p>Real-time OCR results with highlighted regions</p>
+            
+            <div class="screenshot-container" id="live-screenshot-container">
+                <img id="live-screenshot" src="" alt="Screenshot with OCR regions" oncontextmenu="return false;">
+                <div class="loading-overlay" id="screenshot-loading">
+                    <div class="spinner"></div>
+                    <div>Loading...</div>
+                </div>
+            </div>
+            
+            <div class="ocr-control-panel">
+                <button onclick="requestScreenshot()" class="button-blue">Refresh Screenshot</button>
+                <div class="connection-status">
+                    <span id="connection-indicator" class="connected">●</span>
+                    <span id="connection-text">Connected</span>
+                </div>
+            </div>
+            
+            <!-- Text results section -->
+            <div class="text-results-section">
+                <h3>Detected Text</h3>
+                <button onclick="requestOcrResults()" class="refresh-btn">Refresh Text Results</button>
+                <div id="timestamp-display"></div>
+                
+                <div class="ocr-results" id="ocr-results-container" style="display: block;">
+                    <div id="no-results-message">No OCR results available yet. Start the macro to begin OCR processing.</div>
+                    <div id="results-list"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div id="ocr-settings-tab" class="tab-content">
+        <h2>OCR Settings</h2>
+        
+        <div class="form-group">
+            <label class="toggle">
+                <input type="checkbox" id="ocr-enabled">
+                <span class="slider"></span>
+            </label>
+            <span>Enable OCR</span>
+        </div>
+        
+        <div class="form-group">
+            <button onclick="verifyTesseract()" class="button-blue">Verify Tesseract Installation</button>
+            <div id="tesseract-status" style="margin-top: 10px; padding: 10px; display: none; border: 1px solid #ddd; border-radius: 5px;"></div>
+        </div>
+        
+        <div class="form-group">
+            <button onclick="takeScreenshot()" class="button-green">Take Screenshot</button>
+        </div>
+        
+        <div id="screenshotContainer">
+            <img id="screenshotImg" alt="Screenshot will appear here" oncontextmenu="return false;">
+            <div id="selectionBox"></div>
+        </div>
+        
+        <div class="form-group" id="region-form" style="display: none;">
+            <h3>Add OCR Region</h3>
+            <label for="region-name">Region Name:</label>
+            <input type="text" id="region-name" placeholder="Enter a name for this region">
+            <div class="coordinates" id="selection-coords"></div>
+            <button onclick="saveRegion()" class="button-green" style="margin-top: 10px;">Save Region</button>
+        </div>
+        
+        <div class="regions-list" id="regions-list"></div>
+    </div>
+    
+    <script>
+        // Socket.IO connection
+        let socket;
+        
+        // Variables for screenshot and region selection
+        let isSelecting = false;
+        let startX, startY;
+        let currentScreenshot = null;
+        let ocrSettings = {
+            enabled: false,
+            regions: []
+        };
+        
+        // Connect to WebSocket server when page loads
+        window.onload = function() {
+            connectWebSocket();
+            loadOcrSettings();
+        };
+        
+        // Function to connect to WebSocket
+        function connectWebSocket() {
+            // Connect to the same host that served this page
+            socket = io();
+            
+            // Socket connection events
+            socket.on('connect', function() {
+                console.log('Connected to server');
+                updateConnectionStatus(true);
+            });
+            
+            socket.on('disconnect', function() {
+                console.log('Disconnected from server');
+                updateConnectionStatus(false);
+            });
+            
+            socket.on('connect_error', function(err) {
+                console.error('Connection error:', err);
+                updateConnectionStatus(false);
+            });
+            
+            // Listen for status updates
+            socket.on('status_update', function(data) {
+                updateStatusDisplay(data.status);
+            });
+            
+            // Listen for OCR results updates
+            socket.on('ocr_update', function(data) {
+                updateOcrResults(data.results);
+                if (data.timestamp) {
+                    document.getElementById('timestamp-display').innerText = 'Last updated: ' + data.timestamp;
+                }
+            });
+            
+            // Listen for screenshot updates
+            socket.on('screenshot_update', function(data) {
+                updateScreenshot(data.screenshot);
+            });
+            
+            // Listen for settings updates
+            socket.on('settings_update', function(data) {
+                ocrSettings = data.settings;
+                document.getElementById('ocr-enabled').checked = ocrSettings.enabled;
+                renderRegionsList();
+            });
+            
+            // Listen for error messages
+            socket.on('error', function(data) {
+                console.error('Server error:', data.message);
+                // Optionally, display this to the user
+            });
+        }
+        
+        // Function to update connection status display
+        function updateConnectionStatus(connected) {
+            const indicator = document.getElementById('connection-indicator');
+            const text = document.getElementById('connection-text');
+            
+            if (connected) {
+                indicator.className = 'connected';
+                text.innerText = 'Connected';
+            } else {
+                indicator.className = 'disconnected';
+                text.innerText = 'Disconnected';
+            }
+        }
+        
+        // Function to request a fresh screenshot
+        function requestScreenshot() {
+            if (!socket || !socket.connected) {
+                console.error('Not connected to server');
+                return;
+            }
+            
+            // Show loading indicator
+            document.getElementById('screenshot-loading').style.display = 'flex';
+            
+            // Request screenshot via WebSocket
+            socket.emit('request_screenshot');
+        }
+        
+        // Function to request current OCR results
+        function requestOcrResults() {
+            if (!socket || !socket.connected) {
+                console.error('Not connected to server');
+                return;
+            }
+            
+            socket.emit('request_ocr_results');
+        }
+        
+        // Function to update the screenshot display
+        function updateScreenshot(base64Image) {
+            const img = document.getElementById('live-screenshot');
+            img.src = 'data:image/png;base64,' + base64Image;
+            
+            // Hide loading after image loads
+            img.onload = function() {
+                document.getElementById('screenshot-loading').style.display = 'none';
+            };
+        }
+        
+        // Function to switch tabs
+        function switchTab(tabId) {
+            document.querySelectorAll('.tab').forEach(tab => tab.classList.remove('active'));
+            document.querySelectorAll('.tab-content').forEach(content => content.classList.remove('active'));
+            
+            if (tabId === 'control') {
+                document.querySelector('.tab:nth-child(1)').classList.add('active');
+                document.getElementById('control-tab').classList.add('active');
+                // Refresh data when switching to control tab
+                requestScreenshot();
+                requestOcrResults();
+            } else if (tabId === 'ocr-settings') {
+                document.querySelector('.tab:nth-child(2)').classList.add('active');
+                document.getElementById('ocr-settings-tab').classList.add('active');
+            }
+        }
+        
+        // Function to update status display
+        function updateStatusDisplay(status) {
+            const statusDisplay = document.getElementById('status-display');
+            statusDisplay.className = 'status ' + status;
+            statusDisplay.innerText = 'Status: ' + status.charAt(0).toUpperCase() + status.slice(1);
+            
+            // Update button states
+            updateButtonStates(status);
+        }
+        
+        // Function to update button states based on macro status
+        function updateButtonStates(status) {
+            const startBtn = document.getElementById('start-btn');
+            const pauseBtn = document.getElementById('pause-btn');
+            const stopBtn = document.getElementById('stop-btn');
+            
+            switch(status) {
+                case 'stopped':
+                    startBtn.disabled = false;
+                    pauseBtn.disabled = true;
+                    stopBtn.disabled = true;
+                    break;
+                case 'running':
+                    startBtn.disabled = true;
+                    pauseBtn.disabled = false;
+                    stopBtn.disabled = false;
+                    break;
+                case 'paused':
+                    startBtn.disabled = false;
+                    pauseBtn.disabled = true;
+                    stopBtn.disabled = false;
+                    break;
+            }
+        }
+        
+        // Function to update OCR results display
+        function updateOcrResults(results) {
+            const container = document.getElementById('ocr-results-container');
+            const noResultsMsg = document.getElementById('no-results-message');
+            const resultsList = document.getElementById('results-list');
+            
+            container.style.display = 'block';
+            resultsList.innerHTML = '';
+            
+            const resultsArray = Object.entries(results);
+            
+            if (resultsArray.length === 0) {
+                noResultsMsg.style.display = 'block';
+            } else {
+                noResultsMsg.style.display = 'none';
+                
+                resultsArray.forEach(([regionName, text]) => {
+                    const resultItem = document.createElement('div');
+                    resultItem.className = 'result-item';
+                    
+                    const nameElement = document.createElement('div');
+                    nameElement.className = 'result-name';
+                    nameElement.innerText = regionName;
+                    
+                    const textElement = document.createElement('div');
+                    textElement.className = 'result-text';
+                    textElement.innerText = text || '(No text detected)';
+                    
+                    resultItem.appendChild(nameElement);
+                    resultItem.appendChild(textElement);
+                    resultsList.appendChild(resultItem);
+                });
+            }
+        }
+        
+        // Function to control the macro
+        function controlMacro(action) {
+            const formData = new FormData();
+            formData.append('action', action);
+            
+            fetch('/control', {
+                method: 'POST',
+                body: formData
+            })
+            .then(response => response.json())
+            .then(data => {
+                console.log(data.message);
+            });
+        }
+        
+        // Function to load OCR settings
+        function loadOcrSettings() {
+            fetch('/ocr_settings')
+                .then(response => response.json())
+                .then(data => {
+                    ocrSettings = data;
+                    document.getElementById('ocr-enabled').checked = ocrSettings.enabled;
+                    renderRegionsList();
+                });
+        }
+        
+        // Function to take screenshot (for region selection)
+        function takeScreenshot() {
+            fetch('/screenshot')
+                .then(response => response.json())
+                .then(data => {
+                    currentScreenshot = data.screenshot;
+                    const img = document.getElementById('screenshotImg');
+                    img.src = 'data:image/png;base64,' + data.screenshot;
+                    
+                    // Enable selection after screenshot is loaded
+                    img.onload = function() {
+                        setupScreenshotSelection();
+                    };
+                });
+        }
+        
+        // Function to set up screenshot selection
+        function setupScreenshotSelection() {
+            const container = document.getElementById('screenshotContainer');
+            const img = document.getElementById('screenshotImg');
+            const selectionBox = document.getElementById('selectionBox');
+            
+            // Remove previous listeners if any
+            container.onmousedown = null;
+            container.onmousemove = null;
+            container.onmouseup = null;
+            document.removeEventListener('mouseup', handleMouseUp);
+            
+            // Create a transparent overlay for capturing events
+            let overlay = document.getElementById('selection-overlay');
+            if (!overlay) {
+                overlay = document.createElement('div');
+                overlay.id = 'selection-overlay';
+                overlay.style.position = 'absolute';
+                overlay.style.top = '0';
+                overlay.style.left = '0';
+                overlay.style.width = '100%';
+                overlay.style.height = '100%';
+                overlay.style.zIndex = '10';
+                container.appendChild(overlay);
+            }
+            
+            // Handle mouse down
+            overlay.onmousedown = function(e) {
+                e.preventDefault(); // Prevent default browser behavior
+                isSelecting = true;
+                
+                // Get coordinates relative to the container
+                const rect = container.getBoundingClientRect();
+                startX = e.clientX - rect.left;
+                startY = e.clientY - rect.top;
+                
+                // Position the selection box
+                selectionBox.style.left = startX + 'px';
+                selectionBox.style.top = startY + 'px';
+                selectionBox.style.width = '0px';
+                selectionBox.style.height = '0px';
+                selectionBox.style.display = 'block';
+            };
+            
+            // Handle mouse move
+            overlay.onmousemove = function(e) {
+                if (!isSelecting) return;
+                e.preventDefault(); // Prevent default browser behavior
+                
+                const rect = container.getBoundingClientRect();
+                const currentX = e.clientX - rect.left;
+                const currentY = e.clientY - rect.top;
+                
+                // Calculate dimensions
+                const width = currentX - startX;
+                const height = currentY - startY;
+                
+                // Update selection box
+                if (width > 0) {
+                    selectionBox.style.width = width + 'px';
+                } else {
+                    selectionBox.style.left = currentX + 'px';
+                    selectionBox.style.width = (startX - currentX) + 'px';
+                }
+                
+                if (height > 0) {
+                    selectionBox.style.height = height + 'px';
+                } else {
+                    selectionBox.style.top = currentY + 'px';
+                    selectionBox.style.height = (startY - currentY) + 'px';
+                }
+            };
+            
+            function handleMouseUp(e) {
+                if (!isSelecting) return;
+                e.preventDefault(); // Prevent default browser behavior
+                
+                // Only process if the event happened in the overlay
+                const rect = container.getBoundingClientRect();
+                if (e.clientX < rect.left || e.clientX > rect.right || 
+                    e.clientY < rect.top || e.clientY > rect.bottom) {
+                    // Click outside the container, cancel selection
+                    selectionBox.style.display = 'none';
+                    isSelecting = false;
+                    return;
+                }
+                
+                isSelecting = false;
+                
+                const currentX = e.clientX - rect.left;
+                const currentY = e.clientY - rect.top;
+                
+                // Calculate actual coordinates (adjust for negative selections)
+                let x1 = Math.min(startX, currentX);
+                let y1 = Math.min(startY, currentY);
+                let x2 = Math.max(startX, currentX);
+                let y2 = Math.max(startY, currentY);
+                
+                // Calculate width and height
+                const width = x2 - x1;
+                const height = y2 - y1;
+                
+                // Check if region is too small
+                const MIN_SIZE = 10;
+                if (width < MIN_SIZE || height < MIN_SIZE) {
+                    alert(`Region is too small (${width}x${height} pixels). Please select a region at least ${MIN_SIZE}x${MIN_SIZE} pixels.`);
+                    selectionBox.style.display = 'none';
+                    return;
+                }
+                
+                // Show form to save the region
+                document.getElementById('region-form').style.display = 'block';
+                document.getElementById('selection-coords').innerText = 
+                    `Coordinates: (${Math.round(x1)}, ${Math.round(y1)}) to (${Math.round(x2)}, ${Math.round(y2)})`;
+                document.getElementById('selection-coords').innerHTML += `<br>Size: ${Math.round(width)}x${Math.round(height)} pixels`;
+                
+                // Calculate scaling factor between displayed image and actual screenshot
+                const scaleX = img.naturalWidth / img.clientWidth;
+                const scaleY = img.naturalHeight / img.clientHeight;
+                
+                // Store actual screen coordinates (adjust for image scaling)
+                document.getElementById('region-form').dataset.x1 = Math.round(x1 * scaleX);
+                document.getElementById('region-form').dataset.y1 = Math.round(y1 * scaleY);
+                document.getElementById('region-form').dataset.x2 = Math.round(x2 * scaleX);
+                document.getElementById('region-form').dataset.y2 = Math.round(y2 * scaleY);
+            }
+            
+            // Handle mouse up both on the overlay and globally to catch dragging outside
+            overlay.onmouseup = handleMouseUp;
+            document.addEventListener('mouseup', handleMouseUp);
+        }
+        
+        // Function to save the selected region
+        function saveRegion() {
+            const form = document.getElementById('region-form');
+            const name = document.getElementById('region-name').value || 'Unnamed Region';
+            
+            const region = {
+                name: name,
+                x1: parseInt(form.dataset.x1),
+                y1: parseInt(form.dataset.y1),
+                x2: parseInt(form.dataset.x2),
+                y2: parseInt(form.dataset.y2)
+            };
+            
+            fetch('/add_ocr_region', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(region)
+            })
+            .then(response => response.json())
+            .then(data => {
+                console.log('Region saved:', data);
+                ocrSettings = data.settings;
+                renderRegionsList();
+                
+                // Reset the form
+                document.getElementById('region-form').style.display = 'none';
+                document.getElementById('region-name').value = '';
+                document.getElementById('selectionBox').style.display = 'none';
+                
+                // Request a new screenshot via WebSocket to show the new region
+                if (socket && socket.connected) {
+                    socket.emit('request_screenshot');
+                }
+            });
+        }
+        
+        // Function to delete a region
+        function deleteRegion(index) {
+            fetch('/delete_ocr_region', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ index: index })
+            })
+            .then(response => response.json())
+            .then(data => {
+                console.log('Region deleted:', data);
+                ocrSettings = data.settings;
+                renderRegionsList();
+                
+                // Request a new screenshot via WebSocket to reflect the deleted region
+                if (socket && socket.connected) {
+                    socket.emit('request_screenshot');
+                }
+            });
+        }
+        
+        // Function to render the list of regions
+        function renderRegionsList() {
+            const list = document.getElementById('regions-list');
+            list.innerHTML = '';
+            
+            if (ocrSettings.regions.length === 0) {
+                list.innerHTML = '<p>No OCR regions defined. Take a screenshot and select a region.</p>';
+                return;
+            }
+            
+            ocrSettings.regions.forEach((region, index) => {
+                const item = document.createElement('div');
+                item.className = 'region-item';
+                
+                const info = document.createElement('div');
+                info.innerHTML = `
+                    <strong>${region.name}</strong>
+                    <div class="coordinates">
+                        (${region.x1}, ${region.y1}) to (${region.x2}, ${region.y2})
+                    </div>
+                `;
+                
+                const deleteBtn = document.createElement('span');
+                deleteBtn.className = 'region-delete';
+                deleteBtn.innerText = 'Delete';
+                deleteBtn.onclick = function() {
+                    deleteRegion(index);
+                };
+                
+                item.appendChild(info);
+                item.appendChild(deleteBtn);
+                list.appendChild(item);
+            });
+        }
+
+        // Function to verify Tesseract installation
+        function verifyTesseract() {
+            const statusDiv = document.getElementById('tesseract-status');
+            statusDiv.innerHTML = "Checking Tesseract installation...";
+            statusDiv.style.display = "block";
+            statusDiv.style.backgroundColor = "#f8f9fa";
+            
+            fetch('/verify_tesseract')
+                .then(response => response.json())
+                .then(data => {
+                    let statusHtml = '';
+                    
+                    if (data.installed && data.test_passed) {
+                        statusHtml = `
+                            <div style="color: green; font-weight: bold;">✓ Tesseract is properly installed</div>
+                            <div>Path: ${data.path}</div>
+                            <div>Version: ${data.version}</div>
+                            <div style="margin-top: 10px;">OCR functionality is working correctly.</div>
+                        `;
+                        statusDiv.style.backgroundColor = "#e7f7e7";
+                    } else {
+                        statusHtml = `
+                            <div style="color: red; font-weight: bold;">✗ Tesseract installation issue detected</div>
+                        `;
+                        
+                        if (data.path) {
+                            statusHtml += `<div>Configured path: ${data.path}</div>`;
+                        }
+                        
+                        if (data.error) {
+                            statusHtml += `<div>Error: ${data.error}</div>`;
+                        }
+                        
+                        if (data.installed && !data.test_passed && data.test_error) {
+                            statusHtml += `<div>Tesseract is installed but the test failed: ${data.test_error}</div>`;
+                        }
+                        
+                        statusHtml += `
+                            <div style="margin-top: 10px;">
+                                <strong>Troubleshooting steps:</strong>
+                                <ol>
+                                    <li>Ensure Tesseract OCR is installed on your system</li>
+                                    <li>Make sure the path in the code matches your installation path</li>
+                                    <li>Verify that you have the necessary language data files installed</li>
+                                    <li>Try restarting the application</li>
+                                </ol>
+                            </div>
+                        `;
+                        statusDiv.style.backgroundColor = "#ffebee";
+                    }
+                    
+                    statusDiv.innerHTML = statusHtml;
+                })
+                .catch(error => {
+                    statusDiv.style.backgroundColor = "#ffebee";
+                    statusDiv.innerHTML = `<div style="color: red;">Error checking Tesseract: ${error}</div>`;
+                });
+        }
+        
+        // Handle toggle OCR setting
+        document.getElementById('ocr-enabled').addEventListener('change', function() {
+            ocrSettings.enabled = this.checked;
+            
+            fetch('/ocr_settings', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(ocrSettings)
+            })
+            .then(response => response.json())
+            .then(data => {
+                console.log('OCR settings updated:', data);
+            });
+        });
+    </script>
+</body>
+</html>
