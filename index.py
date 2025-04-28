@@ -228,8 +228,8 @@ def perform_ocr():
             except Exception as e:
                 print(f"OCR processing error: {str(e)}")
         
-        # Sleep for 10 seconds
-        time.sleep(10)
+        # Sleep for 2 seconds
+        time.sleep(2)
 
 def generate_highlighted_screenshot(screenshot):
     """Generate a screenshot with OCR regions highlighted"""
