@@ -236,7 +236,7 @@ def perform_ocr():
                     img_array = np.array(region_img.convert('L'))
                     std_dev = np.std(img_array)
                     if std_dev < 10:  # Very low variance suggests a plain/empty region
-                        # logger.debug("Region '{}' has very low variance (std_dev={:.2f}), likely no text.", region_name, std_dev)
+                        logger.debug("Region '{}' has very low variance (std_dev={:.2f}), likely no text.", region_name, std_dev)
                         ocr_results[region_name] = "(No text detected)"
                         continue
                     
@@ -367,8 +367,8 @@ def perform_ocr():
             
             # Log timestamp
             timestamp = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-            # logger.info("OCR scan completed at {}", timestamp)
-            # logger.info("=" * 60)
+            logger.info("OCR scan completed at {}", timestamp)
+            logger.info("=" * 60)
             
             # Emit OCR results via WebSockets
             socketio.emit('ocr_update', {'results': ocr_results, 'timestamp': timestamp})
