@@ -34,7 +34,7 @@ This is very basic i don't plan on doing advanced macro, feel free to take this 
 
 1. Start the application:
    ```
-   python index.py
+   python app.py
    ```
 
 2. Access the web interface:
