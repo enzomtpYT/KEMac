@@ -31,6 +31,13 @@ BIOME_COLORS = {
     "snowy": 0xc4f5f6,
     "blossom": 0xffaaff,
     "inferno": 0xff5500,
+    "prismatic": 0xc1c2ff,
+    "matrix": 0x00ff00,
+    "hazardous": 0xaa00ff,
+    "heaven": 0xffff7f,
+    "submerged": 0x182751,
+    "clockwork": 0x565656,
+    "abyss": 0x505050,
     "default": 0xffffff,
 }
 
@@ -53,7 +60,14 @@ EMOJIS = {
     "windy": "🍃",
     "snowy": "❄️",
     "blossom": "🌸",
-    "inferno": "🔥"
+    "inferno": "🔥",
+    "prismatic": "🌈",
+    "matrix": "🟢",
+    "hazardous": "☣️",
+    "heaven": "☁️",
+    "submerged": "🌊",
+    "clockwork": "⏱️",
+    "abyss": "🌌",
 }
 
 def load_last_detections():
@@ -287,9 +301,6 @@ def send_webhook(region_name, text):
                                 "image": {
                                     "url": f"attachment://{region_name}_{current_time_str}.png"
                                 },
-                                "thumbnail": {
-                                    "url": "https://cdn-icons-png.flaticon.com/512/6396/6396558.png"  # Optional biome thumbnail
-                                },
                                 "fields": [
                                     {
                                         "name": f"{EMOJIS['biome']} Region",
@@ -308,7 +319,7 @@ def send_webhook(region_name, text):
                                     }
                                 ],
                                 "footer": {
-                                    "text": "OCR Biome Detection System • Powered by KEMac",
+                                    "text": "KEMac OCR Biome Detection System",
                                     "icon_url": "https://cdn-icons-png.flaticon.com/512/1089/1089366.png"  # Optional footer icon
                                 }
                             }
@@ -334,7 +345,7 @@ def send_webhook(region_name, text):
                 logger.warning("Image not found: {}", original_image_path)
                 payload = {
                     "username": "OCR Biome Detector",
-                    "avatar_url": "https://cdn-icons-png.flaticon.com/512/1458/1458260.png",
+                    "avatar_url": "https://share.enzomtp.party/cMeRQCeg6lTdOytWNcez2asH.png",
                     "content": content,
                     "embeds": [
                         {
@@ -342,9 +353,6 @@ def send_webhook(region_name, text):
                             "description": description,
                             "color": embed_color,
                             "timestamp": timestamp,
-                            "thumbnail": {
-                                "url": "https://cdn-icons-png.flaticon.com/512/6396/6396558.png"
-                            },
                             "fields": [
                                 {
                                     "name": f"{EMOJIS['biome']} Region",
@@ -368,8 +376,8 @@ def send_webhook(region_name, text):
                                 }
                             ],
                             "footer": {
-                                "text": "OCR Biome Detection System • Powered by KEMac",
-                                "icon_url": "https://cdn-icons-png.flaticon.com/512/1089/1089366.png"
+                                "text": "KEMac OCR Biome Detection System",
+                                "icon_url": "https://share.enzomtp.party/cMeRQCeg6lTdOytWNcez2asH.png"
                             }
                         }
                     ]
