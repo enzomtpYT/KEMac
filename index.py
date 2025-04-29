@@ -10,6 +10,7 @@ import threading
 import time
 import pytesseract
 import numpy as np
+import requests
 from flask_socketio import SocketIO, emit
 
 # Set the path to Tesseract executable - uncommented and using default Windows installation path
@@ -27,7 +28,14 @@ socketio = SocketIO(app, cors_allowed_origins="*")
 macro_status = "stopped"  # Possible states: "running", "paused", "stopped"
 ocr_settings = {
     "enabled": False,
-    "regions": []  # Will contain coordinates for OCR regions: [{"x1": 0, "y1": 0, "x2": 100, "y2": 100, "name": "Region 1"}]
+    "regions": [],  # Will contain coordinates for OCR regions: [{"x1": 0, "y1": 0, "x2": 100, "y2": 100, "name": "Region 1"}]
+    "webhook": {
+        "enabled": False,
+        "url": "",
+        "biome_notifications": True,  # Enable biome notifications by default
+        "user_id": "",  # User ID to ping in Discord
+        "keywords": []  # List of keywords with ping settings: [{"text": "forest", "enabled": True, "ping": True}, ...]
+    }
 }
 ocr_results = {}  # Store the latest OCR results for each region
 ocr_thread = None  # Thread for OCR processing
@@ -42,9 +50,221 @@ settings_file = os.path.join(settings_dir, "ocr_settings.json")
 if os.path.exists(settings_file):
     try:
         with open(settings_file, 'r') as f:
-            ocr_settings = json.load(f)
-    except:
-        print("Could not load OCR settings, using defaults")
+            loaded_settings = json.load(f)
+            
+            # Update existing settings with loaded values
+            ocr_settings["enabled"] = loaded_settings.get("enabled", False)
+            ocr_settings["regions"] = loaded_settings.get("regions", [])
+            
+            # Handle webhook settings, ensuring they exist
+            if "webhook" in loaded_settings:
+                ocr_settings["webhook"]["enabled"] = loaded_settings["webhook"].get("enabled", False)
+                ocr_settings["webhook"]["url"] = loaded_settings["webhook"].get("url", "")
+                ocr_settings["webhook"]["biome_notifications"] = loaded_settings["webhook"].get("biome_notifications", True)
+                ocr_settings["webhook"]["user_id"] = loaded_settings["webhook"].get("user_id", "")
+                ocr_settings["webhook"]["keywords"] = loaded_settings["webhook"].get("keywords", [])
+            
+            print("OCR settings loaded successfully")
+    except Exception as e:
+        print(f"Could not load OCR settings, using defaults: {str(e)}")
+
+def send_webhook(region_name, text):
+    """Send webhook notification for biome regions when text matches keywords"""
+    if not ocr_settings["webhook"]["enabled"] or not ocr_settings["webhook"]["url"]:
+        return False
+    
+    if not ocr_settings["webhook"]["biome_notifications"]:
+        return False
+    
+    # Check if region name contains "biome" (case-insensitive)
+    if "biome" not in region_name.lower():
+        return False
+    
+    # Check if there are keywords defined
+    keywords = ocr_settings["webhook"]["keywords"]
+    
+    # Normalize detected text for comparison
+    detected_text = text.lower()
+    
+    # Variables to track matches
+    text_matched = False
+    matching_keyword = None
+    should_ping = False
+    
+    # If no keywords are defined, allow all text
+    if not keywords:
+        text_matched = True
+    else:
+        # Check if any keyword matches the detected text
+        for keyword in keywords:
+            # Skip disabled keywords
+            if not keyword.get("enabled", True):
+                continue
+                
+            keyword_text = keyword.get("text", "").lower()
+            if not keyword_text:
+                continue
+                
+            # Check if the keyword is in the detected text
+            if keyword_text in detected_text:
+                text_matched = True
+                matching_keyword = keyword
+                should_ping = keyword.get("ping", False)
+                print(f"OCR text in '{region_name}' matched keyword: '{keyword_text}'")
+                break
+    
+    # If no keyword was matched and we have keywords defined, don't send webhook
+    if not text_matched and keywords:
+        print(f"OCR text in '{region_name}' did not match any keywords. Webhook not sent.")
+        return False
+    
+    webhook_url = ocr_settings["webhook"]["url"]
+    is_discord = "discord" in webhook_url.lower()
+    user_id = ocr_settings["webhook"]["user_id"]
+    
+    # Get the cropped region image path
+    debug_dir = os.path.join(settings_dir, "debug")
+    original_image_path = os.path.join(debug_dir, f"{region_name}_original.png")
+    
+    # Generate a timestamp for the image filename
+    current_time = datetime.datetime.now().strftime('%Y%m%d_%H%M%S')
+    
+    try:
+        timestamp = datetime.datetime.now().isoformat()
+        
+        if is_discord:
+            # Format content with ping if required
+            matched_keyword_text = matching_keyword.get("text", "Unknown") if matching_keyword else "Matched"
+            content = f"**{matched_keyword_text}** detected in region **{region_name}**"
+            
+            if should_ping and user_id:
+                content = f"<@{user_id}> {content}"
+            
+            # First, send a Discord message with the detected keyword and metadata
+            files = {}
+            
+            # Check if the image exists and attach it
+            if os.path.exists(original_image_path):
+                # Create multipart form-data with image file
+                with open(original_image_path, 'rb') as img_file:
+                    # Format for Discord webhook with file attachment
+                    payload = {
+                        "username": "OCR Biome Detector",
+                        "content": content,
+                        "embeds": [
+                            {
+                                "title": f"Biome Detection in {region_name}",
+                                "color": 3447003,  # Blue color
+                                "timestamp": timestamp,
+                                "fields": [
+                                    {
+                                        "name": "Region",
+                                        "value": region_name,
+                                        "inline": True
+                                    },
+                                    {
+                                        "name": "Timestamp",
+                                        "value": datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
+                                        "inline": True
+                                    },
+                                    {
+                                        "name": "Detected Keyword",
+                                        "value": matched_keyword_text,
+                                        "inline": True
+                                    }
+                                ],
+                                "footer": {
+                                    "text": "OCR Biome Detection System"
+                                }
+                            }
+                        ]
+                    }
+                    
+                    # Discord requires "file" as the key for file uploads
+                    files = {
+                        "file": (f"{region_name}_{current_time}.png", img_file, "image/png")
+                    }
+                    
+                    # Send the webhook request with file
+                    response = requests.post(
+                        webhook_url,
+                        data={"payload_json": json.dumps(payload)},
+                        files=files,
+                        timeout=5  # Slightly longer timeout
+                    )
+            else:
+                # If image doesn't exist, send without attachment
+                print(f"Image not found: {original_image_path}")
+                payload = {
+                    "username": "OCR Biome Detector",
+                    "content": content,
+                    "embeds": [
+                        {
+                            "title": f"Biome Detection in {region_name}",
+                            "description": "No image available",
+                            "color": 3447003,  # Blue color
+                            "timestamp": timestamp,
+                            "fields": [
+                                {
+                                    "name": "Region",
+                                    "value": region_name,
+                                    "inline": True
+                                },
+                                {
+                                    "name": "Timestamp",
+                                    "value": datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
+                                    "inline": True
+                                },
+                                {
+                                    "name": "Detected Keyword",
+                                    "value": matched_keyword_text,
+                                    "inline": True
+                                }
+                            ],
+                            "footer": {
+                                "text": "OCR Biome Detection System"
+                            }
+                        }
+                    ]
+                }
+                
+                # Send the webhook request
+                response = requests.post(
+                    webhook_url,
+                    json=payload,
+                    headers={"Content-Type": "application/json"},
+                    timeout=5
+                )
+        else:
+            # Generic webhook format
+            matched_keyword_text = matching_keyword.get("text", "Unknown") if matching_keyword else "Matched"
+            
+            payload = {
+                "timestamp": timestamp,
+                "region_name": region_name,
+                "detected_keyword": matched_keyword_text
+            }
+            
+            # Send the webhook request
+            response = requests.post(
+                webhook_url,
+                json=payload,
+                headers={"Content-Type": "application/json"},
+                timeout=5  # Slightly longer timeout
+            )
+        
+        # Log the response
+        print(f"Webhook sent for biome region '{region_name}': {response.status_code}")
+        
+        # If there was an error, log the response content
+        if response.status_code >= 400:
+            print(f"Webhook error response: {response.text}")
+            
+        return response.status_code < 400  # Return success if status code < 400
+    
+    except Exception as e:
+        print(f"Webhook error for biome region '{region_name}': {str(e)}")
+        return False
 
 def preprocess_image_for_ocr(img):
     """Apply image preprocessing to improve OCR accuracy"""
@@ -204,6 +424,12 @@ def perform_ocr():
                         # Save result
                         ocr_results[region_name] = best_text.strip()
                         
+                        # Send webhook for biome regions
+                        if "biome" in region_name.lower() and ocr_settings["webhook"]["enabled"] and ocr_settings["webhook"]["url"]:
+                            webhook_sent = send_webhook(region_name, best_text.strip())
+                            if webhook_sent:
+                                print(f"Webhook notification sent for biome region: {region_name}")
+                        
                     except Exception as e:
                         error_msg = f"Error processing region {region_name}: {str(e)}"
                         print(error_msg)
@@ -228,13 +454,13 @@ def perform_ocr():
             except Exception as e:
                 print(f"OCR processing error: {str(e)}")
         
-        # Sleep for 2 seconds
-        time.sleep(2)
+        # Sleep for 0.5 seconds
+        time.sleep(0.5)
 
 def generate_highlighted_screenshot(screenshot):
     """Generate a screenshot with OCR regions highlighted"""
     highlight_img = screenshot.copy()
-    draw = ImageDraw.Draw(highlight_img)
+    draw = ImageDraw.Draw(highlight_img, "RGBA")
     
     # Draw rectangles for each region with labels
     for i, region in enumerate(ocr_settings["regions"]):
@@ -555,6 +781,119 @@ def get_highlighted_screenshot():
     
     except Exception as e:
         return jsonify({"error": str(e)}), 500
+
+@app.route("/webhook_settings", methods=["GET", "POST"])
+def manage_webhook_settings():
+    global ocr_settings
+    
+    if request.method == "GET":
+        return jsonify(ocr_settings["webhook"])
+    
+    elif request.method == "POST":
+        data = request.json
+        ocr_settings["webhook"]["enabled"] = data.get("enabled", False)
+        ocr_settings["webhook"]["url"] = data.get("url", "")
+        ocr_settings["webhook"]["biome_notifications"] = data.get("biome_notifications", True)
+        ocr_settings["webhook"]["user_id"] = data.get("user_id", "")
+        
+        # Handle keywords
+        if "keywords" in data:
+            ocr_settings["webhook"]["keywords"] = data["keywords"]
+        
+        # Save settings to file
+        with open(settings_file, 'w') as f:
+            json.dump(ocr_settings, f)
+        
+        # Broadcast settings update via WebSocket
+        socketio.emit('webhook_update', {'webhook': ocr_settings["webhook"]})
+        
+        return jsonify({"message": "Webhook settings saved successfully", "webhook": ocr_settings["webhook"]})
+
+@app.route("/test_webhook", methods=["POST"])
+def test_webhook():
+    """Endpoint to test webhook with proper format for Discord"""
+    data = request.json
+    webhook_url = data.get("url", "")
+    
+    if not webhook_url:
+        return jsonify({"success": False, "message": "No webhook URL provided"}), 400
+    
+    is_discord = "discord" in webhook_url.lower()
+    
+    try:
+        timestamp = datetime.datetime.now().isoformat()
+        
+        if is_discord:
+            # Format for Discord webhook
+            payload = {
+                "username": "OCR Biome Detector",
+                "content": "**Test Webhook** - Biome detection system is working!",
+                "embeds": [
+                    {
+                        "title": "Test Notification",
+                        "description": "This is a test notification from the OCR Biome Detection system.",
+                        "color": 3447003,  # Blue color
+                        "timestamp": timestamp,
+                        "fields": [
+                            {
+                                "name": "Test Region",
+                                "value": "Test_Biome_Region",
+                                "inline": True
+                            },
+                            {
+                                "name": "Timestamp",
+                                "value": datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
+                                "inline": True
+                            }
+                        ],
+                        "footer": {
+                            "text": "OCR Biome Detection System - Test"
+                        }
+                    }
+                ]
+            }
+        else:
+            # Generic webhook format
+            payload = {
+                "timestamp": timestamp,
+                "region_name": "Test_Biome_Region",
+                "detected_text": "This is a test webhook notification from the OCR system",
+                "is_test": True
+            }
+        
+        # Send the webhook request
+        response = requests.post(
+            webhook_url,
+            json=payload,
+            headers={"Content-Type": "application/json"},
+            timeout=5
+        )
+        
+        # Log the response for debugging
+        print(f"Test webhook response: {response.status_code}")
+        response_text = response.text[:500]  # Truncate long responses
+        print(f"Response content: {response_text}")
+        
+        if response.status_code >= 400:
+            return jsonify({
+                "success": False,
+                "status_code": response.status_code,
+                "message": f"Webhook test failed with status {response.status_code}",
+                "response": response_text
+            }), 500
+            
+        return jsonify({
+            "success": True,
+            "status_code": response.status_code,
+            "message": "Webhook test successful"
+        })
+        
+    except Exception as e:
+        print(f"Test webhook error: {str(e)}")
+        return jsonify({
+            "success": False,
+            "message": f"Error testing webhook: {str(e)}"
+        }), 500
 
 def get_local_ip():
     """Get the local IP address of this machine"""

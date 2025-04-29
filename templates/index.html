@@ -350,6 +350,7 @@
     <div class="tabs">
         <div class="tab active" onclick="switchTab('control')">Macro Control</div>
         <div class="tab" onclick="switchTab('ocr-settings')">OCR Settings</div>
+        <div class="tab" onclick="switchTab('webhook-settings')">Webhook Settings</div>
     </div>
     
     <div id="control-tab" class="tab-content active">
@@ -381,7 +382,7 @@
             <div class="ocr-control-panel">
                 <button onclick="requestScreenshot()" class="button-blue">Refresh Screenshot</button>
                 <div class="connection-status">
-                    <span id="connection-indicator" class="connected">●</span>
+                    <span id="connection-indicator" class="connected"></span>
                     <span id="connection-text">Connected</span>
                 </div>
             </div>
@@ -434,6 +435,79 @@
         </div>
         
         <div class="regions-list" id="regions-list"></div>
+    </div>
+    
+    <div id="webhook-settings-tab" class="tab-content">
+        <h2>Webhook Settings</h2>
+        <p>Configure webhook notifications for OCR regions containing "biome" in their name</p>
+        
+        <div class="form-group">
+            <label class="toggle">
+                <input type="checkbox" id="webhook-enabled">
+                <span class="slider"></span>
+            </label>
+            <span>Enable Webhook Notifications</span>
+        </div>
+        
+        <div class="form-group">
+            <label for="webhook-url">Webhook URL:</label>
+            <input type="text" id="webhook-url" placeholder="Enter your webhook URL here" style="width: 90%; max-width: 500px;">
+            <p class="help-text" style="font-size: 12px; color: #666; margin-top: 5px;">
+                This URL will receive notifications when OCR detects text in regions with "biome" in their name.
+            </p>
+        </div>
+        
+        <div class="form-group">
+            <label for="user-id">Discord User ID (for pings):</label>
+            <input type="text" id="user-id" placeholder="Enter your Discord user ID for mentions" style="width: 90%; max-width: 500px;">
+            <p class="help-text" style="font-size: 12px; color: #666; margin-top: 5px;">
+                Your Discord user ID for @mentions. Will only be used when a keyword with ping enabled is matched.
+            </p>
+        </div>
+        
+        <div class="form-group">
+            <label class="toggle">
+                <input type="checkbox" id="biome-notifications" checked>
+                <span class="slider"></span>
+            </label>
+            <span>Send notifications for biome regions</span>
+        </div>
+        
+        <div class="form-group">
+            <h3>Keyword Triggers</h3>
+            <p>Add keywords that will trigger webhook notifications when detected in OCR text</p>
+            
+            <div style="display: flex; margin-bottom: 10px;">
+                <input type="text" id="new-keyword" placeholder="Enter new keyword" style="flex: 1; margin-right: 10px;">
+                <button onclick="addKeyword()" class="button-green">Add Keyword</button>
+            </div>
+            
+            <div id="keyword-list" style="margin-top: 20px; border: 1px solid #ddd; border-radius: 5px; padding: 10px; max-height: 300px; overflow-y: auto;">
+                <p id="no-keywords-message">No keywords defined. Webhook will be sent for all detected text.</p>
+                <table id="keywords-table" style="width: 100%; border-collapse: collapse; display: none;">
+                    <thead>
+                        <tr>
+                            <th style="text-align: left; padding: 8px; border-bottom: 1px solid #ddd;">Keyword</th>
+                            <th style="text-align: center; padding: 8px; border-bottom: 1px solid #ddd;">Enabled</th>
+                            <th style="text-align: center; padding: 8px; border-bottom: 1px solid #ddd;">Ping</th>
+                            <th style="text-align: center; padding: 8px; border-bottom: 1px solid #ddd;">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody id="keywords-table-body">
+                    </tbody>
+                </table>
+            </div>
+        </div>
+        
+        <div class="form-group">
+            <button onclick="saveWebhookSettings()" class="button-green">Save Webhook Settings</button>
+        </div>
+        
+        <div class="form-group" style="margin-top: 30px;">
+            <h3>Testing</h3>
+            <button onclick="testWebhook()" class="button-blue">Test Webhook</button>
+            <div id="webhook-test-result" style="margin-top: 10px; padding: 10px; display: none; border: 1px solid #ddd; border-radius: 5px;"></div>
+        </div>
     </div>
     
     <script>
@@ -506,6 +580,15 @@
                 console.error('Server error:', data.message);
                 // Optionally, display this to the user
             });
+
+            // Listen for webhook settings updates via WebSocket
+            socket.on('webhook_update', function(data) {
+                document.getElementById('webhook-enabled').checked = data.webhook.enabled;
+                document.getElementById('webhook-url').value = data.webhook.url;
+                document.getElementById('biome-notifications').checked = data.webhook.biome_notifications;
+                document.getElementById('user-id').value = data.webhook.user_id || '';
+                renderKeywords(data.webhook.keywords || []);
+            });
         }
         
         // Function to update connection status display
@@ -571,6 +654,9 @@
             } else if (tabId === 'ocr-settings') {
                 document.querySelector('.tab:nth-child(2)').classList.add('active');
                 document.getElementById('ocr-settings-tab').classList.add('active');
+            } else if (tabId === 'webhook-settings') {
+                document.querySelector('.tab:nth-child(3)').classList.add('active');
+                document.getElementById('webhook-settings-tab').classList.add('active');
             }
         }
         
@@ -987,6 +1073,350 @@
             .then(data => {
                 console.log('OCR settings updated:', data);
             });
+        });
+        
+        // Function to load webhook settings
+        function loadWebhookSettings() {
+            fetch('/webhook_settings')
+                .then(response => response.json())
+                .then(data => {
+                    // Load basic settings
+                    document.getElementById('webhook-enabled').checked = data.enabled;
+                    document.getElementById('webhook-url').value = data.url || '';
+                    document.getElementById('biome-notifications').checked = data.biome_notifications;
+                    document.getElementById('user-id').value = data.user_id || '';
+                    
+                    // Load and render keywords
+                    renderKeywords(data.keywords || []);
+                    
+                    console.log('Webhook settings loaded successfully', data);
+                })
+                .catch(error => console.error('Error loading webhook settings:', error));
+        }
+        
+        // Function to save webhook settings
+        function saveWebhookSettings() {
+            fetch('/webhook_settings')
+                .then(response => response.json())
+                .then(data => {
+                    // Keep existing keywords
+                    const updatedSettings = {
+                        enabled: document.getElementById('webhook-enabled').checked,
+                        url: document.getElementById('webhook-url').value.trim(),
+                        biome_notifications: document.getElementById('biome-notifications').checked,
+                        user_id: document.getElementById('user-id').value.trim(),
+                        keywords: data.keywords || [] // Preserve existing keywords
+                    };
+                    
+                    return fetch('/webhook_settings', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify(updatedSettings)
+                    });
+                })
+                .then(response => response.json())
+                .then(data => {
+                    alert('Webhook settings saved successfully!');
+                    console.log('Webhook settings updated:', data);
+                })
+                .catch(error => {
+                    alert('Error saving webhook settings. Please try again.');
+                    console.error('Error saving webhook settings:', error);
+                });
+        }
+        
+        // Function to test webhook
+        function testWebhook() {
+            const webhookUrl = document.getElementById('webhook-url').value.trim();
+            const resultDiv = document.getElementById('webhook-test-result');
+            
+            if (!webhookUrl) {
+                resultDiv.style.display = 'block';
+                resultDiv.style.backgroundColor = '#ffebee';
+                resultDiv.innerHTML = '<div style="color: red;">Please enter a webhook URL first.</div>';
+                return;
+            }
+            
+            resultDiv.style.display = 'block';
+            resultDiv.style.backgroundColor = '#f8f9fa';
+            resultDiv.innerHTML = '<div>Sending test webhook...</div>';
+            
+            // Send test request to our server endpoint instead of directly to webhook URL
+            fetch('/test_webhook', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ url: webhookUrl })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    resultDiv.style.backgroundColor = '#e7f7e7';
+                    resultDiv.innerHTML = `
+                        <div style="color: green; font-weight: bold;">✓ Webhook test successful!</div>
+                        <div>Response status: ${data.status_code}</div>
+                        <div>Test message sent to: ${webhookUrl}</div>
+                    `;
+                } else {
+                    resultDiv.style.backgroundColor = '#ffebee';
+                    resultDiv.innerHTML = `
+                        <div style="color: red; font-weight: bold;">✗ Webhook test failed</div>
+                        <div>Error: ${data.message}</div>
+                        ${data.response ? `<div>Response: ${data.response}</div>` : ''}
+                        <div>Please check that your webhook URL is correct and the server is running.</div>
+                    `;
+                }
+            })
+            .catch(error => {
+                resultDiv.style.backgroundColor = '#ffebee';
+                resultDiv.innerHTML = `
+                    <div style="color: red; font-weight: bold;">✗ Webhook test failed</div>
+                    <div>Error: ${error.message}</div>
+                    <div>There was a problem with the webhook test. Please try again.</div>
+                `;
+            });
+        }
+        
+        // Function to render keywords list in the table
+        function renderKeywords(keywords) {
+            const tableBody = document.getElementById('keywords-table-body');
+            const noKeywordsMsg = document.getElementById('no-keywords-message');
+            const keywordsTable = document.getElementById('keywords-table');
+            
+            // Clear the table
+            tableBody.innerHTML = '';
+            
+            if (!keywords || keywords.length === 0) {
+                noKeywordsMsg.style.display = 'block';
+                keywordsTable.style.display = 'none';
+                return;
+            }
+            
+            // Hide the "no keywords" message and show the table
+            noKeywordsMsg.style.display = 'none';
+            keywordsTable.style.display = 'table';
+            
+            // Add each keyword to the table
+            keywords.forEach((keyword, index) => {
+                const row = document.createElement('tr');
+                
+                // Keyword text cell
+                const textCell = document.createElement('td');
+                textCell.style.padding = '8px';
+                textCell.style.borderBottom = '1px solid #ddd';
+                textCell.textContent = keyword.text;
+                
+                // Enabled toggle cell
+                const enabledCell = document.createElement('td');
+                enabledCell.style.padding = '8px';
+                enabledCell.style.borderBottom = '1px solid #ddd';
+                enabledCell.style.textAlign = 'center';
+                
+                const enabledLabel = document.createElement('label');
+                enabledLabel.className = 'toggle';
+                enabledLabel.style.margin = '0 auto';
+                
+                const enabledInput = document.createElement('input');
+                enabledInput.type = 'checkbox';
+                enabledInput.checked = keyword.enabled !== false; // Default to true if undefined
+                enabledInput.onchange = function() {
+                    updateKeywordProperty(index, 'enabled', this.checked);
+                };
+                
+                const enabledSlider = document.createElement('span');
+                enabledSlider.className = 'slider';
+                
+                enabledLabel.appendChild(enabledInput);
+                enabledLabel.appendChild(enabledSlider);
+                enabledCell.appendChild(enabledLabel);
+                
+                // Ping toggle cell
+                const pingCell = document.createElement('td');
+                pingCell.style.padding = '8px';
+                pingCell.style.borderBottom = '1px solid #ddd';
+                pingCell.style.textAlign = 'center';
+                
+                const pingLabel = document.createElement('label');
+                pingLabel.className = 'toggle';
+                pingLabel.style.margin = '0 auto';
+                
+                const pingInput = document.createElement('input');
+                pingInput.type = 'checkbox';
+                pingInput.checked = keyword.ping === true;
+                pingInput.onchange = function() {
+                    updateKeywordProperty(index, 'ping', this.checked);
+                };
+                
+                const pingSlider = document.createElement('span');
+                pingSlider.className = 'slider';
+                
+                pingLabel.appendChild(pingInput);
+                pingLabel.appendChild(pingSlider);
+                pingCell.appendChild(pingLabel);
+                
+                // Actions cell
+                const actionsCell = document.createElement('td');
+                actionsCell.style.padding = '8px';
+                actionsCell.style.borderBottom = '1px solid #ddd';
+                actionsCell.style.textAlign = 'center';
+                
+                const deleteButton = document.createElement('button');
+                deleteButton.className = 'region-delete';
+                deleteButton.textContent = 'Remove';
+                deleteButton.onclick = function() {
+                    deleteKeyword(index);
+                };
+                
+                actionsCell.appendChild(deleteButton);
+                
+                // Add all cells to the row
+                row.appendChild(textCell);
+                row.appendChild(enabledCell);
+                row.appendChild(pingCell);
+                row.appendChild(actionsCell);
+                
+                // Add the row to the table
+                tableBody.appendChild(row);
+            });
+        }
+        
+        // Function to add a new keyword
+        function addKeyword() {
+            const keywordInput = document.getElementById('new-keyword');
+            const keywordText = keywordInput.value.trim();
+            
+            if (!keywordText) {
+                alert('Please enter a keyword first.');
+                return;
+            }
+            
+            // Get current keywords from webhook settings
+            fetch('/webhook_settings')
+                .then(response => response.json())
+                .then(data => {
+                    const keywords = data.keywords || [];
+                    
+                    // Check if keyword already exists
+                    const exists = keywords.some(k => k.text.toLowerCase() === keywordText.toLowerCase());
+                    if (exists) {
+                        alert('This keyword already exists.');
+                        return;
+                    }
+                    
+                    // Add the new keyword
+                    keywords.push({
+                        text: keywordText,
+                        enabled: true,
+                        ping: false
+                    });
+                    
+                    // Update webhook settings with new keywords
+                    const updatedSettings = {
+                        ...data,
+                        keywords: keywords
+                    };
+                    
+                    return fetch('/webhook_settings', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify(updatedSettings)
+                    });
+                })
+                .then(response => response.json())
+                .then(data => {
+                    // Clear the input field
+                    keywordInput.value = '';
+                    
+                    // Render the updated keywords list
+                    renderKeywords(data.webhook.keywords);
+                })
+                .catch(error => {
+                    console.error('Error adding keyword:', error);
+                    alert('Error adding keyword. Please try again.');
+                });
+        }
+        
+        // Function to delete a keyword
+        function deleteKeyword(index) {
+            fetch('/webhook_settings')
+                .then(response => response.json())
+                .then(data => {
+                    const keywords = data.keywords || [];
+                    
+                    if (index >= 0 && index < keywords.length) {
+                        // Remove the keyword at the specified index
+                        keywords.splice(index, 1);
+                        
+                        // Update webhook settings without the deleted keyword
+                        const updatedSettings = {
+                            ...data,
+                            keywords: keywords
+                        };
+                        
+                        return fetch('/webhook_settings', {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json'
+                            },
+                            body: JSON.stringify(updatedSettings)
+                        });
+                    }
+                })
+                .then(response => response.json())
+                .then(data => {
+                    // Render the updated keywords list
+                    renderKeywords(data.webhook.keywords);
+                })
+                .catch(error => {
+                    console.error('Error deleting keyword:', error);
+                    alert('Error deleting keyword. Please try again.');
+                });
+        }
+        
+        // Function to update a keyword property (enabled or ping)
+        function updateKeywordProperty(index, property, value) {
+            fetch('/webhook_settings')
+                .then(response => response.json())
+                .then(data => {
+                    const keywords = data.keywords || [];
+                    
+                    if (index >= 0 && index < keywords.length) {
+                        // Update the specified property of the keyword
+                        keywords[index][property] = value;
+                        
+                        // Update webhook settings with the modified keyword
+                        const updatedSettings = {
+                            ...data,
+                            keywords: keywords
+                        };
+                        
+                        return fetch('/webhook_settings', {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json'
+                            },
+                            body: JSON.stringify(updatedSettings)
+                        });
+                    }
+                })
+                .then(response => response.json())
+                .then(data => {
+                    // No need to re-render since the toggles update visually
+                })
+                .catch(error => {
+                    console.error(`Error updating keyword ${property}:`, error);
+                    alert(`Error updating keyword. Please try again.`);
+                });
+        }
+        
+        // Load webhook settings when page loads
+        window.addEventListener('DOMContentLoaded', function() {
+            loadWebhookSettings();
         });
     </script>
 </body>
