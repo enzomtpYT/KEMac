@@ -25,7 +25,7 @@ This is very basic i don't plan on doing advanced macro, feel free to take this 
 
 2. Install required Python packages:
    ```
-   pip install flask flask-socketio pillow pytesseract numpy
+   pip install flask flask-socketio pillow pytesseract numpy opencv-python requests
    ```
 
 3. Clone or download this repository
