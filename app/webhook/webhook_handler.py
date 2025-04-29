@@ -19,6 +19,43 @@ last_webhook_time = {}
 # Cooldown period in seconds before sending another webhook for the same region
 WEBHOOK_COOLDOWN = 5  # 5 seconds cooldown
 
+# Discord embed color mapping for the specific biomes
+BIOME_COLORS = {
+    "rainy": 0x808aa5,
+    "normal": 0xffffff,
+    "undefined": 0x95a5a6,
+    "astralis": 0x856293,
+    "void": 0x2c3e50,
+    "limbo": 0xff9b9b,
+    "windy": 0x91f7ff,
+    "snowy": 0xc4f5f6,
+    "blossom": 0xffaaff,
+    "inferno": 0xff5500,
+    "default": 0xffffff,
+}
+
+# Emojis for different UI elements
+EMOJIS = {
+    "biome": "🌍",
+    "text": "📝",
+    "time": "⏰",
+    "match": "🔍",
+    "warning": "⚠️",
+    "success": "✅",
+    "error": "❌",
+    # Biome-specific emojis
+    "rainy": "🌧️",
+    "normal": "🌿",
+    "undefined": "❓",
+    "astralis": "✨",
+    "void": "⚫",
+    "limbo": "🎉",
+    "windy": "🍃",
+    "snowy": "❄️",
+    "blossom": "🌸",
+    "inferno": "🔥"
+}
+
 def load_last_detections():
     """Load the last detected data (text and matched keywords) for each region from the file"""
     if os.path.exists(LAST_DETECTIONS_FILE):
@@ -194,6 +231,7 @@ def send_webhook(region_name, text):
     
     # Generate a timestamp for the image filename
     current_time_str = datetime.datetime.now().strftime('%Y%m%d_%H%M%S')
+    formatted_time = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
     
     try:
         timestamp = datetime.datetime.now().isoformat()
@@ -201,13 +239,35 @@ def send_webhook(region_name, text):
         if is_discord:
             # Format content with ping if required
             display_keyword = matching_keyword.get("text", "Unknown") if matching_keyword else "Matched"
-            content = f"**{display_keyword}** detected in region **{region_name}**"
+            
+            # Detect biome type from text or region name
+            detected_biome = "default"
+            biome_emoji = EMOJIS["biome"]
+            
+            # Look for any biome name in the detected text or region name
+            for biome in ["rainy", "normal", "undefined", "astralis", "void", "limbo", "windy", "snowy", "blossom"]:
+                if biome in detected_text or biome in region_name.lower():
+                    detected_biome = biome
+                    biome_emoji = EMOJIS.get(biome, EMOJIS["biome"])
+                    break
+            
+            content = f"**{biome_emoji} {display_keyword}** detected in region **{region_name}**"
             
             if should_ping and user_id:
                 content = f"<@{user_id}> {content}"
             
             # First, send a Discord message with the detected keyword and metadata
             files = {}
+            
+            # Get appropriate color based on detected biome
+            embed_color = BIOME_COLORS.get(detected_biome, BIOME_COLORS["default"])
+            
+            # Create a more engaging description
+            description = f"{biome_emoji} **{detected_biome.capitalize()} biome has been detected!**\n\n"
+            description += f"> {text}\n\n"
+            
+            if matched_keyword_text and matched_keyword_text != "AllText":
+                description += f"{EMOJIS['success']} Matched keyword: **{matched_keyword_text}**"
             
             # Check if the image exists and attach it
             if os.path.exists(original_image_path):
@@ -216,36 +276,40 @@ def send_webhook(region_name, text):
                     # Format for Discord webhook with file attachment
                     payload = {
                         "username": "OCR Biome Detector",
+                        "avatar_url": "https://cdn-icons-png.flaticon.com/512/1458/1458260.png",  # Optional biome icon
                         "content": content,
                         "embeds": [
                             {
-                                "title": f"Biome Detection in {region_name}",
-                                "color": 3447003,  # Blue color
+                                "title": f"{biome_emoji} Biome Detection: {region_name}",
+                                "description": description,
+                                "color": embed_color,
                                 "timestamp": timestamp,
+                                "image": {
+                                    "url": f"attachment://{region_name}_{current_time_str}.png"
+                                },
+                                "thumbnail": {
+                                    "url": "https://cdn-icons-png.flaticon.com/512/6396/6396558.png"  # Optional biome thumbnail
+                                },
                                 "fields": [
                                     {
-                                        "name": "Region",
-                                        "value": region_name,
+                                        "name": f"{EMOJIS['biome']} Region",
+                                        "value": f"`{region_name}`",
                                         "inline": True
                                     },
                                     {
-                                        "name": "Timestamp",
-                                        "value": datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
+                                        "name": f"{EMOJIS['time']} Time",
+                                        "value": formatted_time,
                                         "inline": True
                                     },
                                     {
-                                        "name": "Detected Text",
-                                        "value": text,
-                                        "inline": True
-                                    },
-                                    {
-                                        "name": "Matched Keyword",
-                                        "value": display_keyword,
-                                        "inline": True
+                                        "name": f"{EMOJIS['text']} Detected Text",
+                                        "value": f"```{text}```",
+                                        "inline": False
                                     }
                                 ],
                                 "footer": {
-                                    "text": "OCR Biome Detection System"
+                                    "text": "OCR Biome Detection System • Powered by KEMac",
+                                    "icon_url": "https://cdn-icons-png.flaticon.com/512/1089/1089366.png"  # Optional footer icon
                                 }
                             }
                         ]
@@ -270,37 +334,42 @@ def send_webhook(region_name, text):
                 logger.warning("Image not found: {}", original_image_path)
                 payload = {
                     "username": "OCR Biome Detector",
+                    "avatar_url": "https://cdn-icons-png.flaticon.com/512/1458/1458260.png",
                     "content": content,
                     "embeds": [
                         {
-                            "title": f"Biome Detection in {region_name}",
-                            "description": "No image available",
-                            "color": 3447003,  # Blue color
+                            "title": f"{biome_emoji} Biome Detection: {region_name}",
+                            "description": description,
+                            "color": embed_color,
                             "timestamp": timestamp,
+                            "thumbnail": {
+                                "url": "https://cdn-icons-png.flaticon.com/512/6396/6396558.png"
+                            },
                             "fields": [
                                 {
-                                    "name": "Region",
-                                    "value": region_name,
+                                    "name": f"{EMOJIS['biome']} Region",
+                                    "value": f"`{region_name}`",
                                     "inline": True
                                 },
                                 {
-                                    "name": "Timestamp",
-                                    "value": datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
+                                    "name": f"{EMOJIS['time']} Time",
+                                    "value": formatted_time,
                                     "inline": True
                                 },
                                 {
-                                    "name": "Detected Text",
-                                    "value": text,
+                                    "name": f"{EMOJIS['warning']} No Image",
+                                    "value": "Original image could not be found",
                                     "inline": True
                                 },
                                 {
-                                    "name": "Matched Keyword",
-                                    "value": display_keyword,
-                                    "inline": True
+                                    "name": f"{EMOJIS['text']} Detected Text",
+                                    "value": f"```{text}```",
+                                    "inline": False
                                 }
                             ],
                             "footer": {
-                                "text": "OCR Biome Detection System"
+                                "text": "OCR Biome Detection System • Powered by KEMac",
+                                "icon_url": "https://cdn-icons-png.flaticon.com/512/1089/1089366.png"
                             }
                         }
                     ]
