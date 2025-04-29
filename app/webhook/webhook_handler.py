@@ -5,8 +5,39 @@ import requests
 
 from app.config import ocr_settings, settings_dir
 
+# File to store last detected text for persistence between runs
+last_detections_file = os.path.join(settings_dir, "last_detections.json")
+
+# Dictionary to store the last detected text for each region
+last_detected_text = {}
+
+# Load last detections from file if it exists
+def load_last_detections():
+    global last_detected_text
+    if os.path.exists(last_detections_file):
+        try:
+            with open(last_detections_file, 'r') as f:
+                last_detected_text = json.load(f)
+                print(f"Loaded {len(last_detected_text)} previous detections from file")
+        except Exception as e:
+            print(f"Error loading last detections: {str(e)}")
+            last_detected_text = {}
+
+# Save last detections to file for persistence
+def save_last_detections():
+    try:
+        with open(last_detections_file, 'w') as f:
+            json.dump(last_detected_text, f)
+    except Exception as e:
+        print(f"Error saving last detections: {str(e)}")
+
+# Load last detections when the module is imported
+load_last_detections()
+
 def send_webhook(region_name, text):
     """Send webhook notification for biome regions when text matches keywords"""
+    global last_detected_text
+    
     if not ocr_settings["webhook"]["enabled"] or not ocr_settings["webhook"]["url"]:
         return False
     
@@ -16,6 +47,15 @@ def send_webhook(region_name, text):
     # Check if region name contains "biome" (case-insensitive)
     if "biome" not in region_name.lower():
         return False
+    
+    # Check if this is the same text as the last detection for this region
+    if region_name in last_detected_text and last_detected_text[region_name] == text:
+        print(f"Same text detected in '{region_name}' as previous detection. Skipping webhook.")
+        return False
+    
+    # Store the current text for future comparison and persist to file
+    last_detected_text[region_name] = text
+    save_last_detections()
     
     # Check if there are keywords defined
     keywords = ocr_settings["webhook"]["keywords"]

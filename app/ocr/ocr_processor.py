@@ -179,13 +179,13 @@ def perform_ocr():
     while get_current_status() == "running" and not stop_ocr_thread:
         # Check if OCR is enabled and regions are defined
         if not ocr_settings["enabled"]:
-            # OCR is disabled but thread is running, just wait
-            time.sleep(1)
+            # OCR is disabled but thread is running, just wait a very short time instead of full second
+            time.sleep(0.1)
             continue
             
         if not ocr_settings["regions"]:
-            # No regions defined, just wait
-            time.sleep(1)
+            # No regions defined, just wait a very short time
+            time.sleep(0.1)
             continue
             
         try:
@@ -205,7 +205,7 @@ def perform_ocr():
                     x1 = max(0, min(region["x1"], screen_width - 1))
                     y1 = max(0, min(region["y1"], screen_height - 1))
                     x2 = max(x1 + 1, min(region["x2"], screen_width))
-                    y2 = max(y1 + 1, min(region["y2"], screen_height))
+                    y2 = max(y1 + 1, min(region["y2"], screenshot.height))
                     
                     # Calculate dimensions
                     width = x2 - x1
@@ -220,11 +220,13 @@ def perform_ocr():
                     # Crop the screenshot to the region
                     region_img = screenshot.crop((x1, y1, x2, y2))
                     
-                    # Save original region for debug
-                    debug_dir = os.path.join(settings_dir, "debug")
-                    os.makedirs(debug_dir, exist_ok=True)
-                    original_debug = os.path.join(debug_dir, f"{region_name}_original.png")
-                    region_img.save(original_debug)
+                    # Only save debug images if the region name contains "biome" (to reduce disk I/O)
+                    save_debug = "biome" in region_name.lower()
+                    if save_debug:
+                        debug_dir = os.path.join(settings_dir, "debug")
+                        os.makedirs(debug_dir, exist_ok=True)
+                        original_debug = os.path.join(debug_dir, f"{region_name}_original.png")
+                        region_img.save(original_debug)
                     
                     # Check if the image has enough contrast/detail to contain text
                     img_array = np.array(region_img.convert('L'))
@@ -234,41 +236,49 @@ def perform_ocr():
                         ocr_results[region_name] = "(No text detected)"
                         continue
                     
-                    # Always apply upscaling for better OCR results - even for larger regions
-                    # Use higher scale factor for smaller regions
+                    # Scale factor optimization - use smaller scale factors for better performance
                     if width < 100 or height < 30:
-                        scale_factor = 4  # Use higher scale factor for very small regions
+                        scale_factor = 3  # Reduced from 4 for better performance
                     else:
-                        scale_factor = 2  # Use moderate scaling for larger regions
+                        scale_factor = 1.5  # Reduced from 2 for better performance
                     
                     # Use LANCZOS resampling for better quality
-                    region_img = region_img.resize((width * scale_factor, height * scale_factor), Image.LANCZOS)
+                    region_img = region_img.resize((int(width * scale_factor), int(height * scale_factor)), Image.LANCZOS)
                     
-                    # Apply multiple preprocessing methods
-                    processed_imgs = preprocess_image_for_ocr(region_img)
+                    # Apply preprocessing methods - use fewer methods for better performance
+                    if "biome" in region_name.lower():
+                        # Use all methods for important regions
+                        processed_imgs = preprocess_image_for_ocr(region_img)
+                    else:
+                        # Use fewer methods for less important regions
+                        processed_imgs = [preprocess_image_for_ocr(region_img)[0], 
+                                          preprocess_image_for_ocr(region_img)[3]]
                     
-                    # Save debug images
-                    for idx, processed_img in enumerate(processed_imgs):
-                        debug_file = os.path.join(debug_dir, f"{region_name}_method{idx+1}.png")
-                        processed_img.save(debug_file)
+                    # Save debug images only for biome regions
+                    if save_debug:
+                        for idx, processed_img in enumerate(processed_imgs):
+                            debug_file = os.path.join(debug_dir, f"{region_name}_method{idx+1}.png")
+                            processed_img.save(debug_file)
                     
-                    # Enhanced OCR configurations with different parameters - removed legacy engine modes (--oem 0)
+                    # Use fewer OCR configurations for better performance
                     ocr_configs = [
-                        '--psm 7 --oem 1',  # Single line of text with LSTM engine
+                        '--psm 7 --oem 1',  # Single line of text with LSTM engine (most common)
                         '--psm 6 --oem 1',  # Assume a single uniform block of text with LSTM engine
-                        '--psm 8 --oem 1',  # Single word with LSTM engine
-                        '--psm 4 --oem 1',  # Assume single column of text of variable sizes with LSTM engine
-                        '--psm 3 --oem 1 -c tessedit_char_whitelist=0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz.,-:;(){}[]<>!@#$%^&*+=/\\|"\'?_ ',
-                        '--psm 6 --oem 3',  # Default mode with both engines
-                        '--psm 6 -l eng --oem 1'  # Specify English language explicitly
                     ]
+                    
+                    # For biome regions, use more configurations for better accuracy
+                    if "biome" in region_name.lower():
+                        ocr_configs.extend([
+                            '--psm 8 --oem 1',  # Single word with LSTM engine
+                            '--psm 3 --oem 1 -c tessedit_char_whitelist=0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz.,-:;(){}[]<>!@#$%^&*+=/\\|"\'?_ '
+                        ])
                     
                     # Find the best OCR result
                     best_text = ""
                     best_config = ""
                     best_method = 0
                     best_confidence = 0
-                    min_tesseract_conf = 30  # Minimum required Tesseract confidence score
+                    min_tesseract_conf = 30
                     
                     for idx, processed_img in enumerate(processed_imgs):
                         for config in ocr_configs:
@@ -312,20 +322,29 @@ def perform_ocr():
                                         best_config = config
                                         best_method = idx + 1
                                         best_confidence = confidence_score
+                                        
+                                        # Early exit if we found a high confidence result
+                                        if confidence_score > 80 and len(text) > 3:
+                                            break
                             except Exception as e:
                                 print(f"Error with OCR config {config} on method {idx+1}: {str(e)}")
                                 continue
+                        
+                        # Early exit if we found a good result after trying the first method
+                        if best_confidence > 80 and len(best_text) > 3:
+                            break
                     
                     # If no valid text was detected, report it
                     if not best_text:
                         best_text = "(No text detected)"
-                        
-                    # Log metadata about the detection
-                    print(f"OCR Result for {region_name} ({width}x{height}):")
-                    print(f"Best method: {best_method}, Config: {best_config}")
-                    print(f"Confidence: {best_confidence:.1f}")
-                    print(f"Text: {best_text}")
-                    print("-" * 40)
+                    
+                    # Only log detailed info for biome regions to reduce console output
+                    if "biome" in region_name.lower() or best_text != "(No text detected)":
+                        print(f"OCR Result for {region_name} ({width}x{height}):")
+                        print(f"Best method: {best_method}, Config: {best_config}")
+                        print(f"Confidence: {best_confidence:.1f}")
+                        print(f"Text: {best_text}")
+                        print("-" * 40)
                     
                     # Save result
                     ocr_results[region_name] = best_text.strip()
@@ -359,9 +378,6 @@ def perform_ocr():
             
         except Exception as e:
             print(f"OCR processing error: {str(e)}")
-        
-        # Sleep for 0.5 seconds
-        time.sleep(0.5)
 
 def generate_highlighted_screenshot(screenshot):
     """Generate a screenshot with OCR regions highlighted"""
