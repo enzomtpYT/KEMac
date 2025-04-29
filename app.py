@@ -8,12 +8,12 @@ import sys
 sys.path.insert(0, os.path.abspath(os.path.dirname(__file__)))
 
 # Import configuration module - note we now import flask_app instead of app
-from app.config import flask_app, socketio, ocr_settings, ocr_results, settings_file, ocr_thread, stop_ocr_thread, settings_dir, status_file, macro_status
+from app.config import flask_app, socketio, ocr_settings, settings_file, status_file, macro_status, log_dir
 from app.ocr.ocr_processor import perform_ocr
-from app.utils.logger import get_logger, LogLevel
+from app.utils.logger import get_logger
 
 # Create logger for this module
-logger = get_logger(__name__, os.path.join(settings_dir, "app.log"))
+logger = get_logger(__name__, os.path.join(log_dir, "app.log"))
 
 # Import all routes to register them with Flask
 import app.routes.api

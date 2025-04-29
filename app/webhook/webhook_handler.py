@@ -4,13 +4,13 @@ import datetime
 import time
 import requests
 
-from app.config import ocr_settings, settings_dir
-from app.utils.logger import get_logger, LogLevel
+from app.config import ocr_settings, log_dir, settings_dir
+from app.utils.logger import get_logger
 
 # Create a logger for the webhook handler
-logger = get_logger(__name__, os.path.join(settings_dir, "webhook.log"))
+logger = get_logger(__name__, os.path.join(log_dir, "webhook.log"))
 
-# File to store the last detected text for persistence
+# File to store the last detected text and matched keywords for persistence
 LAST_DETECTIONS_FILE = os.path.join(settings_dir, "last_detections.json")
 
 # Dictionary to store the last webhook time for each region
@@ -20,7 +20,7 @@ last_webhook_time = {}
 WEBHOOK_COOLDOWN = 5  # 5 seconds cooldown
 
 def load_last_detections():
-    """Load the last detected text for each region from the file"""
+    """Load the last detected data (text and matched keywords) for each region from the file"""
     if os.path.exists(LAST_DETECTIONS_FILE):
         try:
             with open(LAST_DETECTIONS_FILE, 'r') as f:
@@ -28,7 +28,26 @@ def load_last_detections():
                 if not content:  # Handle empty file
                     logger.warning("Last detections file is empty")
                     return {}
-                return json.load(open(LAST_DETECTIONS_FILE, 'r'))
+                
+                # Load the JSON data
+                data = json.load(open(LAST_DETECTIONS_FILE, 'r'))
+                
+                # Convert old format (string values) to new format (dict values)
+                # This ensures backward compatibility with existing last_detections.json files
+                converted_data = {}
+                for region_name, value in data.items():
+                    if isinstance(value, str):
+                        # Old format - convert to new format
+                        converted_data[region_name] = {
+                            "text": value,
+                            "matched_keyword": None
+                        }
+                    else:
+                        # New format - keep as is
+                        converted_data[region_name] = value
+                
+                return converted_data
+                
         except json.JSONDecodeError as e:
             logger.error("Error loading last detections: Invalid JSON - {}", str(e))
             # Backup the corrupted file for inspection
@@ -44,10 +63,19 @@ def load_last_detections():
             logger.error("Error loading last detections: {}", str(e))
     return {}
 
-def save_last_detection(region_name, text):
-    """Save the last detected text for a region to the file"""
+def save_last_detection(region_name, text, matched_keyword_text=None):
+    """Save the last detected text and matched keyword for a region to the file"""
     detections = load_last_detections()
-    detections[region_name] = text
+    
+    # Store both the text and the matched keyword
+    if region_name not in detections:
+        detections[region_name] = {}
+    
+    detections[region_name]["text"] = text
+    
+    # Only update the matched keyword if one was provided
+    if matched_keyword_text is not None:
+        detections[region_name]["matched_keyword"] = matched_keyword_text
     
     try:
         # Ensure the directory exists
@@ -78,34 +106,9 @@ def send_webhook(region_name, text):
     # Load previous detections from file for persistence
     last_detections = load_last_detections()
     
-    # Check if this is the same text as the last detection for this region
-    if region_name in last_detections and last_detections[region_name] == text:
-        logger.debug("Same text '{}' detected in '{}' as previous detection. Skipping webhook.", text, region_name)
-        return False
-    
-    # Check if we've recently sent a webhook for this region (cooldown period)
-    current_time = time.time()
-    if region_name in last_webhook_time:
-        time_since_last_webhook = current_time - last_webhook_time[region_name]
-        if time_since_last_webhook < WEBHOOK_COOLDOWN:
-            logger.debug("Webhook for '{}' on cooldown. {:.1f} seconds remaining.", 
-                      region_name, WEBHOOK_COOLDOWN - time_since_last_webhook)
-            # Still save the detection even if on cooldown
-            save_last_detection(region_name, text)
-            return False
-    
-    # Store the current time for cooldown
-    last_webhook_time[region_name] = current_time
-    
-    # Store the current text for future comparison
-    save_last_detection(region_name, text)
-    
     # Check if there are keywords defined
     keywords = ocr_settings["webhook"].get("keywords", [])
     logger.debug("Keywords for webhook: {}", keywords)
-    
-    # Log webhook activity
-    logger.info("Processing webhook for '{}' with text: '{}'", region_name, text)
     
     # Normalize detected text for comparison
     detected_text = text.lower()
@@ -114,10 +117,12 @@ def send_webhook(region_name, text):
     text_matched = False
     matching_keyword = None
     should_ping = False
+    matched_keyword_text = None
     
     # If no keywords are defined, allow all text
     if not keywords:
         text_matched = True
+        matched_keyword_text = "AllText"
         logger.info("No keywords defined, allowing all text")
     else:
         # Check if any keyword matches the detected text
@@ -134,6 +139,7 @@ def send_webhook(region_name, text):
             if keyword_text in detected_text:
                 text_matched = True
                 matching_keyword = keyword
+                matched_keyword_text = keyword_text
                 should_ping = keyword.get("ping", False)
                 logger.info("OCR text in '{}' matched keyword: '{}'", region_name, keyword_text)
                 break
@@ -141,7 +147,42 @@ def send_webhook(region_name, text):
     # If no keyword was matched and we have keywords defined, don't send webhook
     if not text_matched and keywords:
         logger.info("OCR text in '{}' did not match any keywords. Webhook not sent.", region_name)
+        
+        # Still save the detection to avoid repeated checks
+        save_last_detection(region_name, text, None)
         return False
+    
+    # Check if this is the same keyword match as the last detection for this region
+    if region_name in last_detections and \
+       "matched_keyword" in last_detections[region_name] and \
+       last_detections[region_name]["matched_keyword"] == matched_keyword_text:
+        logger.debug("Same keyword '{}' matched in '{}' as previous detection. Skipping webhook.", 
+                    matched_keyword_text, region_name)
+        
+        # Update the text but keep the same matched keyword
+        save_last_detection(region_name, text, matched_keyword_text)
+        return False
+    
+    # Check if we've recently sent a webhook for this region (cooldown period)
+    current_time = time.time()
+    if region_name in last_webhook_time:
+        time_since_last_webhook = current_time - last_webhook_time[region_name]
+        if time_since_last_webhook < WEBHOOK_COOLDOWN:
+            logger.debug("Webhook for '{}' on cooldown. {:.1f} seconds remaining.", 
+                      region_name, WEBHOOK_COOLDOWN - time_since_last_webhook)
+            # Still save the detection even if on cooldown
+            save_last_detection(region_name, text, matched_keyword_text)
+            return False
+    
+    # Store the current time for cooldown
+    last_webhook_time[region_name] = current_time
+    
+    # Store the current text and matched keyword for future comparison
+    save_last_detection(region_name, text, matched_keyword_text)
+    
+    # Log webhook activity
+    logger.info("Processing webhook for '{}' with text: '{}', matched keyword: '{}'", 
+               region_name, text, matched_keyword_text)
     
     webhook_url = ocr_settings["webhook"]["url"]
     is_discord = "discord" in webhook_url.lower()
@@ -159,8 +200,8 @@ def send_webhook(region_name, text):
         
         if is_discord:
             # Format content with ping if required
-            matched_keyword_text = matching_keyword.get("text", "Unknown") if matching_keyword else "Matched"
-            content = f"**{matched_keyword_text}** detected in region **{region_name}**"
+            display_keyword = matching_keyword.get("text", "Unknown") if matching_keyword else "Matched"
+            content = f"**{display_keyword}** detected in region **{region_name}**"
             
             if should_ping and user_id:
                 content = f"<@{user_id}> {content}"
@@ -199,7 +240,7 @@ def send_webhook(region_name, text):
                                     },
                                     {
                                         "name": "Matched Keyword",
-                                        "value": matched_keyword_text,
+                                        "value": display_keyword,
                                         "inline": True
                                     }
                                 ],
@@ -254,7 +295,7 @@ def send_webhook(region_name, text):
                                 },
                                 {
                                     "name": "Matched Keyword",
-                                    "value": matched_keyword_text,
+                                    "value": display_keyword,
                                     "inline": True
                                 }
                             ],
@@ -276,13 +317,13 @@ def send_webhook(region_name, text):
                 )
         else:
             # Generic webhook format
-            matched_keyword_text = matching_keyword.get("text", "Unknown") if matching_keyword else "Matched"
+            display_keyword = matching_keyword.get("text", "Unknown") if matching_keyword else "Matched"
             
             payload = {
                 "timestamp": timestamp,
                 "region_name": region_name,
                 "detected_text": text,
-                "detected_keyword": matched_keyword_text
+                "detected_keyword": display_keyword
             }
             
             logger.info("Sending generic webhook for '{}'", region_name)

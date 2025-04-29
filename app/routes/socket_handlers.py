@@ -1,6 +1,6 @@
 from PIL import ImageGrab
 import os
-from app.config import socketio, ocr_results, macro_status, status_file
+from app.config import socketio, ocr_results, status_file
 from app.ocr.ocr_processor import generate_highlighted_screenshot
 from flask_socketio import emit
 

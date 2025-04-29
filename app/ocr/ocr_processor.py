@@ -1,6 +1,5 @@
 import os
 import io
-import threading
 import time
 import datetime
 import base64
@@ -10,12 +9,12 @@ import pytesseract
 import cv2
 import re
 
-from app.config import socketio, ocr_settings, ocr_results, macro_status, stop_ocr_thread, MIN_OCR_WIDTH, MIN_OCR_HEIGHT, settings_dir, status_file
+from app.config import socketio, ocr_settings, ocr_results, stop_ocr_thread, MIN_OCR_WIDTH, MIN_OCR_HEIGHT, log_dir, status_file, settings_dir
 from app.webhook.webhook_handler import send_webhook
-from app.utils.logger import get_logger, LogLevel
+from app.utils.logger import get_logger
 
 # Create a logger for the OCR module
-logger = get_logger(__name__, os.path.join(settings_dir, "ocr.log"))
+logger = get_logger(__name__, os.path.join(log_dir, "ocr.log"))
 
 def preprocess_image_for_ocr(img):
     """Apply advanced preprocessing to improve OCR accuracy"""

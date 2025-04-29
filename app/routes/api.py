@@ -1,16 +1,12 @@
-import os
 import io
 import base64
-import json
 import threading
-import datetime
-from PIL import ImageGrab, Image, ImageDraw
+from PIL import ImageGrab
 from flask import render_template, request, jsonify
 
-from app.config import flask_app, socketio, ocr_settings, ocr_results, macro_status, settings_file, status_file
+from app.config import flask_app, socketio, ocr_settings, macro_status, status_file
 from app.config import ocr_thread, stop_ocr_thread
-from app.ocr.ocr_processor import perform_ocr, generate_highlighted_screenshot
-import pytesseract
+from app.ocr.ocr_processor import perform_ocr
 
 # Function to save macro status to file
 def save_macro_status(status):

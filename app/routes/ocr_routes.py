@@ -7,7 +7,7 @@ import base64
 from flask import request, jsonify
 
 from app.config import flask_app, socketio, ocr_settings, ocr_results, settings_file, log_dir
-from app.utils.logger import get_logger, LogLevel
+from app.utils.logger import get_logger
 
 # Create a logger for this module
 logger = get_logger(__name__, os.path.join(log_dir, "routes.log"))

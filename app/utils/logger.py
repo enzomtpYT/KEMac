@@ -4,7 +4,7 @@ import datetime
 import inspect
 import traceback
 from enum import Enum
-from typing import Optional, TextIO
+from typing import Optional
 
 class LogLevel(Enum):
     INFO = 1
