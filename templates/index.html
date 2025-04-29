@@ -3,15 +3,64 @@
 <head>
     <title>Macro Control Panel</title>
     <style>
+        :root {
+            --bg-color: #f5f5f5;
+            --text-color: #333;
+            --header-color: #333;
+            --card-bg: #fff;
+            --border-color: #ddd;
+            --input-bg: #fff;
+            --input-border: #ddd;
+            --section-bg: #f9f9f9;
+            --status-stopped: #ffebee;
+            --status-stopped-text: #F44336;
+            --status-running: #e7f7e7;
+            --status-running-text: #4CAF50;
+            --status-paused: #fff8e1;
+            --status-paused-text: #FF9800;
+            --hover-bg: #f0f0f0;
+            --result-bg: #fff;
+            --highlight-color: #2196F3;
+            --secondary-text: #666;
+            --tab-active-bg: #fff;
+            --tab-inactive-bg: #f5f5f5;
+        }
+
+        [data-theme="dark"] {
+            --bg-color: #121212;
+            --text-color: #e0e0e0;
+            --header-color: #f0f0f0;
+            --card-bg: #1e1e1e;
+            --border-color: #333;
+            --input-bg: #2d2d2d;
+            --input-border: #444;
+            --section-bg: #262626;
+            --status-stopped: #3c1618;
+            --status-stopped-text: #ff5252;
+            --status-running: #1b3b1b;
+            --status-running-text: #66bb6a;
+            --status-paused: #3d3624;
+            --status-paused-text: #ffb74d;
+            --hover-bg: #2d2d2d;
+            --result-bg: #262626;
+            --highlight-color: #42a5f5;
+            --secondary-text: #aaaaaa;
+            --tab-active-bg: #1e1e1e;
+            --tab-inactive-bg: #262626;
+        }
+
         body {
             font-family: Arial, sans-serif;
             max-width: 800px;
             margin: 0 auto;
             padding: 20px;
             text-align: center;
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            transition: background-color 0.3s, color 0.3s;
         }
         h1, h2 {
-            color: #333;
+            color: var(--header-color);
         }
         .control-panel {
             display: flex;
@@ -55,19 +104,19 @@
             margin-bottom: 30px;
         }
         .running {
-            background-color: #e7f7e7;
-            color: #4CAF50;
+            background-color: var(--status-running);
+            color: var(--status-running-text);
         }
         .paused {
-            background-color: #fff8e1;
-            color: #FF9800;
+            background-color: var(--status-paused);
+            color: var(--status-paused-text);
         }
         .stopped {
-            background-color: #ffebee;
-            color: #F44336;
+            background-color: var(--status-stopped);
+            color: var(--status-stopped-text);
         }
         .section {
-            border-top: 1px solid #ddd;
+            border-top: 1px solid var(--border-color);
             padding-top: 20px;
             margin-top: 20px;
             text-align: left;
@@ -79,20 +128,21 @@
         .tab {
             padding: 10px 20px;
             cursor: pointer;
-            border: 1px solid #ddd;
+            border: 1px solid var(--border-color);
             border-radius: 5px 5px 0 0;
             margin-right: 5px;
-            background-color: #f5f5f5;
+            background-color: var(--tab-inactive-bg);
         }
         .tab.active {
-            background-color: #fff;
+            background-color: var(--tab-active-bg);
             border-bottom: none;
             font-weight: bold;
         }
         .tab-content {
             display: none;
             padding: 20px;
-            border: 1px solid #ddd;
+            border: 1px solid var(--border-color);
+            background-color: var(--card-bg);
         }
         .tab-content.active {
             display: block;
@@ -102,7 +152,8 @@
             margin: 20px auto;
             max-width: 100%;
             overflow: auto;
-            border: 1px solid #ddd;
+            border: 1px solid var(--border-color);
+            background-color: var(--card-bg);
         }
         #screenshotImg {
             max-width: 100%;
@@ -129,9 +180,10 @@
             justify-content: space-between;
             align-items: center;
             padding: 10px;
-            border: 1px solid #ddd;
+            border: 1px solid var(--border-color);
             margin-bottom: 10px;
             border-radius: 5px;
+            background-color: var(--card-bg);
         }
         .region-delete {
             color: white;
@@ -150,8 +202,10 @@
         input[type="text"] {
             width: 300px;
             padding: 8px;
-            border: 1px solid #ddd;
+            border: 1px solid var(--input-border);
             border-radius: 4px;
+            background-color: var(--input-bg);
+            color: var(--text-color);
         }
         .toggle {
             position: relative;
@@ -208,35 +262,36 @@
         }
         .coordinates {
             font-size: 12px;
-            color: #666;
+            color: var(--secondary-text);
             margin-top: 5px;
         }
         .ocr-results {
             margin-top: 20px;
-            border: 1px solid #ddd;
+            border: 1px solid var(--border-color);
             border-radius: 5px;
             padding: 15px;
-            background-color: #f9f9f9;
+            background-color: var(--section-bg);
             display: none;
         }
         .result-item {
             margin-bottom: 15px;
-            border-bottom: 1px solid #eee;
+            border-bottom: 1px solid var(--border-color);
             padding-bottom: 15px;
         }
         .result-name {
             font-weight: bold;
-            color: #333;
+            color: var(--text-color);
             margin-bottom: 5px;
         }
         .result-text {
-            background-color: white;
+            background-color: var(--result-bg);
             padding: 10px;
-            border: 1px solid #eee;
+            border: 1px solid var(--border-color);
             border-radius: 3px;
             white-space: pre-wrap;
             font-family: monospace;
             min-height: 40px;
+            color: var(--text-color);
         }
         .refresh-btn {
             margin-top: 10px;
@@ -246,7 +301,7 @@
         }
         .ocr-live-section {
             margin-top: 30px;
-            border-top: 1px solid #ddd;
+            border-top: 1px solid var(--border-color);
             padding-top: 15px;
         }
         
@@ -254,8 +309,9 @@
             position: relative;
             margin: 20px auto;
             max-width: 100%;
-            border: 1px solid #ddd;
+            border: 1px solid var(--border-color);
             min-height: 200px;
+            background-color: var(--card-bg);
         }
         
         #live-screenshot {
@@ -275,7 +331,7 @@
             left: 0;
             width: 100%;
             height: 100%;
-            background: rgba(255, 255, 255, 0.7);
+            background: rgba(40, 40, 40, 0.7);
             display: flex;
             flex-direction: column;
             justify-content: center;
@@ -284,8 +340,8 @@
         }
         
         .spinner {
-            border: 4px solid #f3f3f3;
-            border-top: 4px solid #3498db;
+            border: 4px solid var(--border-color);
+            border-top: 4px solid var(--highlight-color);
             border-radius: 50%;
             width: 30px;
             height: 30px;
@@ -338,13 +394,98 @@
         
         #timestamp-display {
             font-size: 12px;
-            color: #666;
+            color: var(--secondary-text);
             margin-bottom: 10px;
+        }
+        
+        /* Theme toggle styles */
+        .theme-toggle-container {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            display: flex;
+            align-items: center;
+            z-index: 100;
+        }
+        
+        .theme-toggle {
+            position: relative;
+            display: inline-block;
+            width: 60px;
+            height: 30px;
+        }
+        
+        .theme-toggle input {
+            opacity: 0;
+            width: 0;
+            height: 0;
+        }
+        
+        .theme-slider {
+            position: absolute;
+            cursor: pointer;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-color: #ccc;
+            transition: .4s;
+            border-radius: 30px;
+        }
+        
+        .theme-slider:before {
+            position: absolute;
+            content: "☀️";
+            height: 22px;
+            width: 22px;
+            left: 4px;
+            bottom: 4px;
+            background-color: white;
+            transition: .4s;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 12px;
+        }
+        
+        input:checked + .theme-slider {
+            background-color: #2196F3;
+        }
+        
+        input:checked + .theme-slider:before {
+            transform: translateX(30px);
+            content: "🌙";
+        }
+        
+        /* Help text styling */
+        .help-text {
+            font-size: 12px;
+            color: var(--secondary-text);
+            margin-top: 5px;
+        }
+        
+        /* Table styling for keywords */
+        table {
+            color: var(--text-color);
+            background-color: var(--card-bg);
+        }
+        
+        th {
+            color: var(--text-color);
+            border-bottom: 1px solid var(--border-color);
         }
     </style>
     <script src="https://cdn.socket.io/4.6.0/socket.io.min.js"></script>
 </head>
 <body>
+    <div class="theme-toggle-container">
+        <label class="theme-toggle">
+            <input type="checkbox" id="theme-toggle-checkbox" checked>
+            <span class="theme-slider"></span>
+        </label>
+    </div>
+
     <h1>Macro Control Panel</h1>
     
     <div class="tabs">
@@ -511,6 +652,34 @@
     </div>
     
     <script>
+        // Theme management
+        function setTheme(isDark) {
+            if (isDark) {
+                document.documentElement.setAttribute('data-theme', 'dark');
+                document.getElementById('theme-toggle-checkbox').checked = true;
+            } else {
+                document.documentElement.removeAttribute('data-theme');
+                document.getElementById('theme-toggle-checkbox').checked = false;
+            }
+            // Store the preference
+            localStorage.setItem('dark-theme', isDark ? 'true' : 'false');
+        }
+
+        // Initialize theme based on stored preference or default to dark
+        function initializeTheme() {
+            // Get stored preference or default to true (dark theme)
+            const preferDark = localStorage.getItem('dark-theme') !== 'false';
+            setTheme(preferDark);
+        }
+
+        // Toggle theme when the switch is clicked
+        document.getElementById('theme-toggle-checkbox').addEventListener('change', function() {
+            setTheme(this.checked);
+        });
+
+        // Initialize theme when DOM is loaded
+        document.addEventListener('DOMContentLoaded', initializeTheme);
+
         // Socket.IO connection
         let socket;
         
@@ -525,6 +694,7 @@
         
         // Connect to WebSocket server when page loads
         window.onload = function() {
+            initializeTheme(); // Also initialize theme on window load
             connectWebSocket();
             loadOcrSettings();
         };
@@ -1419,5 +1589,9 @@
             loadWebhookSettings();
         });
     </script>
+    
+    <footer style="margin-top: 40px; border-top: 1px solid #ddd; padding-top: 15px; text-align: center; color: #666; font-size: 12px;">
+        <p>KEMac V0.0.4</p>
+    </footer>
 </body>
 </html>
