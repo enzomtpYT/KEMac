@@ -25,10 +25,10 @@ def manage_ocr_settings():
         ocr_settings["enabled"] = data.get("enabled", False)
         ocr_settings["regions"] = data.get("regions", [])
         
-        # Save settings to file
+        # Save settings to file with proper indentation
         try:
             with open(settings_file, 'w') as f:
-                json.dump(ocr_settings, f)
+                json.dump(ocr_settings, f, indent=4)
             logger.info("OCR settings saved successfully")
         except Exception as e:
             logger.error("Failed to save OCR settings: {}", str(e))
@@ -54,10 +54,10 @@ def add_ocr_region():
     
     ocr_settings["regions"].append(new_region)
     
-    # Save settings to file
+    # Save settings to file with proper indentation
     try:
         with open(settings_file, 'w') as f:
-            json.dump(ocr_settings, f)
+            json.dump(ocr_settings, f, indent=4)
         logger.info("Added new OCR region: {}", new_region['name'])
     except Exception as e:
         logger.error("Failed to save OCR region: {}", str(e))
@@ -78,10 +78,10 @@ def delete_ocr_region():
     if 0 <= index < len(ocr_settings["regions"]):
         removed = ocr_settings["regions"].pop(index)
         
-        # Save settings to file
+        # Save settings to file with proper indentation
         try:
             with open(settings_file, 'w') as f:
-                json.dump(ocr_settings, f)
+                json.dump(ocr_settings, f, indent=4)
             logger.info("Deleted OCR region: {}", removed['name'])
         except Exception as e:
             logger.error("Failed to save after deleting region: {}", str(e))

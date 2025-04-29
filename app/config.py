@@ -13,6 +13,8 @@ MIN_OCR_HEIGHT = 10
 # Flask app configuration - renaming to flask_app to avoid namespace conflict
 flask_app = Flask(__name__, template_folder='../templates', static_folder='../static')
 flask_app.config['SECRET_KEY'] = 'macro_control_secret_key'
+flask_app.config['JSONIFY_PRETTYPRINT_REGULAR'] = True  # Enable pretty-printed JSON
+flask_app.config['JSONIFY_INDENT'] = 4  # Set JSON indentation to 4 spaces
 socketio = SocketIO(flask_app, cors_allowed_origins="*")
 
 # Settings file path

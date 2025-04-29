@@ -24,9 +24,9 @@ def manage_webhook_settings():
         if "keywords" in data:
             ocr_settings["webhook"]["keywords"] = data["keywords"]
         
-        # Save settings to file
+        # Save settings to file with proper indentation
         with open(settings_file, 'w') as f:
-            json.dump(ocr_settings, f)
+            json.dump(ocr_settings, f, indent=4)
         
         # Broadcast settings update via WebSocket
         socketio.emit('webhook_update', {'webhook': ocr_settings["webhook"]})

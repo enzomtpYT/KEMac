@@ -132,8 +132,9 @@ def save_last_detection(region_name, text, matched_keyword_text=None):
         # Ensure the directory exists
         os.makedirs(os.path.dirname(LAST_DETECTIONS_FILE), exist_ok=True)
         
+        # Save with proper indentation
         with open(LAST_DETECTIONS_FILE, 'w') as f:
-            json.dump(detections, f)
+            json.dump(detections, f, indent=4)
     except Exception as e:
         logger.error("Error saving last detection: {}", str(e))
 
@@ -290,7 +291,7 @@ def send_webhook(region_name, text):
                     # Format for Discord webhook with file attachment
                     payload = {
                         "username": "OCR Biome Detector",
-                        "avatar_url": "https://cdn-icons-png.flaticon.com/512/1458/1458260.png",  # Optional biome icon
+                        "avatar_url": "https://share.enzomtp.party/BIYXCJV8HmdBCrxMVhfhC4OM.png",  # Optional biome icon
                         "content": content,
                         "embeds": [
                             {
@@ -319,8 +320,7 @@ def send_webhook(region_name, text):
                                     }
                                 ],
                                 "footer": {
-                                    "text": "KEMac OCR Biome Detection System",
-                                    "icon_url": "https://cdn-icons-png.flaticon.com/512/1089/1089366.png"  # Optional footer icon
+                                    "text": "KEMac OCR Biome Detection System"
                                 }
                             }
                         ]
