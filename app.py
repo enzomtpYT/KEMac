@@ -10,6 +10,10 @@ sys.path.insert(0, os.path.abspath(os.path.dirname(__file__)))
 # Import configuration module - note we now import flask_app instead of app
 from app.config import flask_app, socketio, ocr_settings, ocr_results, settings_file, ocr_thread, stop_ocr_thread, settings_dir, status_file, macro_status
 from app.ocr.ocr_processor import perform_ocr
+from app.utils.logger import get_logger, LogLevel
+
+# Create logger for this module
+logger = get_logger(__name__, os.path.join(settings_dir, "app.log"))
 
 # Import all routes to register them with Flask
 import app.routes.api
@@ -35,9 +39,9 @@ if os.path.exists(settings_file):
                 ocr_settings["webhook"]["user_id"] = loaded_settings["webhook"].get("user_id", "")
                 ocr_settings["webhook"]["keywords"] = loaded_settings["webhook"].get("keywords", [])
             
-            print("OCR settings loaded successfully")
+            logger.info("OCR settings loaded successfully")
     except Exception as e:
-        print(f"Could not load OCR settings, using defaults: {str(e)}")
+        logger.error("Could not load OCR settings, using defaults: {}", str(e))
 
 # Load macro status if it exists
 if os.path.exists(status_file):
@@ -46,7 +50,7 @@ if os.path.exists(status_file):
             saved_status = f.read().strip()
             if saved_status in ["running", "paused", "stopped"]:
                 globals()["macro_status"] = saved_status
-                print(f"Loaded saved macro status: {macro_status}")
+                logger.info("Loaded saved macro status: {}", macro_status)
                 
                 # If status is running, start the OCR thread
                 if macro_status == "running":
@@ -54,9 +58,9 @@ if os.path.exists(status_file):
                     globals()["ocr_thread"] = threading.Thread(target=perform_ocr)
                     globals()["ocr_thread"].daemon = True
                     globals()["ocr_thread"].start()
-                    print("Automatically restarting OCR processing thread")
+                    logger.info("Automatically restarting OCR processing thread")
     except Exception as e:
-        print(f"Could not load saved macro status: {str(e)}")
+        logger.error("Could not load saved macro status: {}", str(e))
 
 def get_local_ip():
     """Get the local IP address of this machine"""
@@ -76,9 +80,9 @@ if __name__ == "__main__":
     port = 5000
     local_ip = get_local_ip()
     
-    print("Starting Macro Control Web App...")
-    print(f"Local access: http://127.0.0.1:{port}/")
-    print(f"Network access: http://{local_ip}:{port}/")
-    print("(Press CTRL+C to quit)")
+    logger.info("Starting Macro Control Web App...")
+    logger.info("Local access: http://127.0.0.1:{}/", port)
+    logger.info("Network access: http://{}:{}/", local_ip, port)
+    logger.info("(Press CTRL+C to quit)")
     
     socketio.run(flask_app, host=host, port=port, debug=True, allow_unsafe_werkzeug=True)

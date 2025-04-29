@@ -12,6 +12,10 @@ import re
 
 from app.config import socketio, ocr_settings, ocr_results, macro_status, stop_ocr_thread, MIN_OCR_WIDTH, MIN_OCR_HEIGHT, settings_dir, status_file
 from app.webhook.webhook_handler import send_webhook
+from app.utils.logger import get_logger, LogLevel
+
+# Create a logger for the OCR module
+logger = get_logger(__name__, os.path.join(settings_dir, "ocr.log"))
 
 def preprocess_image_for_ocr(img):
     """Apply advanced preprocessing to improve OCR accuracy"""
@@ -102,7 +106,7 @@ def get_current_status():
                 if saved_status in ["running", "paused", "stopped"]:
                     return saved_status
         except Exception as e:
-            print(f"Error reading status file: {str(e)}")
+            logger.error("Error reading status file: {}", str(e))
     return "stopped"  # Default if file doesn't exist or has invalid content
 
 def is_valid_text(text, min_confidence=40):
@@ -174,7 +178,7 @@ def perform_ocr():
     """Thread function to perform OCR at regular intervals"""
     global stop_ocr_thread
     
-    print("OCR thread started - waiting for processing tasks")
+    logger.info("OCR thread started - waiting for processing tasks")
     
     while get_current_status() == "running" and not stop_ocr_thread:
         # Check if OCR is enabled and regions are defined
@@ -213,7 +217,8 @@ def perform_ocr():
                     
                     # Skip extremely small regions
                     if width < MIN_OCR_WIDTH or height < MIN_OCR_HEIGHT:
-                        print(f"Region '{region_name}' is too small ({width}x{height}), minimum size is {MIN_OCR_WIDTH}x{MIN_OCR_HEIGHT}. Skipping.")
+                        logger.warning("Region '{}' is too small ({}x{}), minimum size is {}x{}. Skipping.", 
+                                     region_name, width, height, MIN_OCR_WIDTH, MIN_OCR_HEIGHT)
                         ocr_results[region_name] = f"Region too small for OCR ({width}x{height})"
                         continue
                     
@@ -232,7 +237,7 @@ def perform_ocr():
                     img_array = np.array(region_img.convert('L'))
                     std_dev = np.std(img_array)
                     if std_dev < 10:  # Very low variance suggests a plain/empty region
-                        print(f"Region '{region_name}' has very low variance (std_dev={std_dev:.2f}), likely no text.")
+                        # logger.debug("Region '{}' has very low variance (std_dev={:.2f}), likely no text.", region_name, std_dev)
                         ocr_results[region_name] = "(No text detected)"
                         continue
                     
@@ -327,7 +332,7 @@ def perform_ocr():
                                         if confidence_score > 80 and len(text) > 3:
                                             break
                             except Exception as e:
-                                print(f"Error with OCR config {config} on method {idx+1}: {str(e)}")
+                                logger.error("Error with OCR config {} on method {}: {}", config, idx+1, str(e))
                                 continue
                         
                         # Early exit if we found a good result after trying the first method
@@ -340,11 +345,11 @@ def perform_ocr():
                     
                     # Only log detailed info for biome regions to reduce console output
                     if "biome" in region_name.lower() or best_text != "(No text detected)":
-                        print(f"OCR Result for {region_name} ({width}x{height}):")
-                        print(f"Best method: {best_method}, Config: {best_config}")
-                        print(f"Confidence: {best_confidence:.1f}")
-                        print(f"Text: {best_text}")
-                        print("-" * 40)
+                        logger.info("OCR Result for {} ({}x{}):", region_name, width, height)
+                        logger.info("Best method: {}, Config: {}", best_method, best_config)
+                        logger.info("Confidence: {:.1f}", best_confidence)
+                        logger.info("Text: {}", best_text)
+                        logger.info("-" * 40)
                     
                     # Save result
                     ocr_results[region_name] = best_text.strip()
@@ -353,18 +358,18 @@ def perform_ocr():
                     if "biome" in region_name.lower() and best_text != "(No text detected)" and ocr_settings["webhook"]["enabled"] and ocr_settings["webhook"]["url"]:
                         webhook_sent = send_webhook(region_name, best_text.strip())
                         if webhook_sent:
-                            print(f"Webhook notification sent for biome region: {region_name}")
+                            logger.info("Webhook notification sent for biome region: {}", region_name)
                     
                 except Exception as e:
                     error_msg = f"Error processing region {region_name}: {str(e)}"
-                    print(error_msg)
+                    logger.error(error_msg)
                     # Store the error in results
                     ocr_results[region_name] = f"Error: {str(e)}"
             
             # Log timestamp
             timestamp = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-            print(f"OCR scan completed at {timestamp}")
-            print("=" * 60)
+            # logger.info("OCR scan completed at {}", timestamp)
+            # logger.info("=" * 60)
             
             # Emit OCR results via WebSockets
             socketio.emit('ocr_update', {'results': ocr_results, 'timestamp': timestamp})
@@ -374,10 +379,10 @@ def perform_ocr():
                 highlighted_screenshot = generate_highlighted_screenshot(screenshot)
                 socketio.emit('screenshot_update', {'screenshot': highlighted_screenshot})
             except Exception as e:
-                print(f"Error generating highlighted screenshot: {str(e)}")
+                logger.error("Error generating highlighted screenshot: {}", str(e))
             
         except Exception as e:
-            print(f"OCR processing error: {str(e)}")
+            logger.error("OCR processing error: {}", str(e))
 
 def generate_highlighted_screenshot(screenshot):
     """Generate a screenshot with OCR regions highlighted"""

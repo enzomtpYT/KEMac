@@ -48,7 +48,7 @@
 /* Base Styles */
 body {
     font-family: Arial, sans-serif;
-    max-width: 800px;
+    max-width: 50%;
     margin: 0 auto;
     padding: 20px;
     text-align: center;
@@ -137,7 +137,6 @@ button:disabled {
 
 .tabs {
     display: flex;
-    margin-bottom: 20px;
 }
 
 .tab {

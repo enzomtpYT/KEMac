@@ -6,13 +6,18 @@ import io
 import base64
 from flask import request, jsonify
 
-from app.config import flask_app, socketio, ocr_settings, ocr_results, settings_file
+from app.config import flask_app, socketio, ocr_settings, ocr_results, settings_file, log_dir
+from app.utils.logger import get_logger, LogLevel
+
+# Create a logger for this module
+logger = get_logger(__name__, os.path.join(log_dir, "routes.log"))
 
 @flask_app.route("/ocr_settings", methods=["GET", "POST"])
 def manage_ocr_settings():
     global ocr_settings
     
     if request.method == "GET":
+        logger.debug("OCR settings requested")
         return jsonify(ocr_settings)
     
     elif request.method == "POST":
@@ -21,8 +26,13 @@ def manage_ocr_settings():
         ocr_settings["regions"] = data.get("regions", [])
         
         # Save settings to file
-        with open(settings_file, 'w') as f:
-            json.dump(ocr_settings, f)
+        try:
+            with open(settings_file, 'w') as f:
+                json.dump(ocr_settings, f)
+            logger.info("OCR settings saved successfully")
+        except Exception as e:
+            logger.error("Failed to save OCR settings: {}", str(e))
+            return jsonify({"error": f"Failed to save settings: {str(e)}"}), 500
         
         # Broadcast settings update via WebSocket
         socketio.emit('settings_update', {'settings': ocr_settings})
@@ -45,8 +55,13 @@ def add_ocr_region():
     ocr_settings["regions"].append(new_region)
     
     # Save settings to file
-    with open(settings_file, 'w') as f:
-        json.dump(ocr_settings, f)
+    try:
+        with open(settings_file, 'w') as f:
+            json.dump(ocr_settings, f)
+        logger.info("Added new OCR region: {}", new_region['name'])
+    except Exception as e:
+        logger.error("Failed to save OCR region: {}", str(e))
+        return jsonify({"error": f"Failed to save region: {str(e)}"}), 500
     
     # Broadcast settings update via WebSocket
     socketio.emit('settings_update', {'settings': ocr_settings})
@@ -64,24 +79,33 @@ def delete_ocr_region():
         removed = ocr_settings["regions"].pop(index)
         
         # Save settings to file
-        with open(settings_file, 'w') as f:
-            json.dump(ocr_settings, f)
+        try:
+            with open(settings_file, 'w') as f:
+                json.dump(ocr_settings, f)
+            logger.info("Deleted OCR region: {}", removed['name'])
+        except Exception as e:
+            logger.error("Failed to save after deleting region: {}", str(e))
+            return jsonify({"error": f"Failed to save changes: {str(e)}"}), 500
         
         # Broadcast settings update via WebSocket
         socketio.emit('settings_update', {'settings': ocr_settings})
         
         return jsonify({"message": f"OCR region '{removed['name']}' deleted", "settings": ocr_settings})
     
+    logger.warning("Invalid region index: {}", index)
     return jsonify({"message": "Invalid region index", "settings": ocr_settings}), 400
 
 @flask_app.route("/ocr_results", methods=["GET"])
 def get_ocr_results():
     """API endpoint to get the latest OCR results"""
+    logger.debug("OCR results requested")
     return jsonify(ocr_results)
 
 @flask_app.route("/verify_tesseract", methods=["GET"])
 def verify_tesseract():
     """Endpoint to verify Tesseract installation and configuration"""
+    logger.info("Verifying Tesseract installation")
+    
     result = {
         "installed": False,
         "path": None,
@@ -95,13 +119,16 @@ def verify_tesseract():
         result["path"] = tesseract_path
         
         if not os.path.exists(tesseract_path):
-            result["error"] = f"Tesseract executable not found at: {tesseract_path}"
+            error_msg = f"Tesseract executable not found at: {tesseract_path}"
+            logger.error(error_msg)
+            result["error"] = error_msg
             return jsonify(result)
         
         # Try to get tesseract version
         version_info = pytesseract.get_tesseract_version()
         result["version"] = str(version_info)
         result["installed"] = True
+        logger.info("Tesseract verified - version: {}", version_info)
         
         # Create a simple test image with text
         test_img = Image.new('RGB', (100, 30), color=(255, 255, 255))
@@ -110,19 +137,24 @@ def verify_tesseract():
         try:
             pytesseract.image_to_string(test_img)
             result["test_passed"] = True
+            logger.info("OCR test passed")
         except Exception as e:
             result["test_passed"] = False
             result["test_error"] = str(e)
+            logger.error("OCR test failed: {}", str(e))
         
         return jsonify(result)
         
     except Exception as e:
+        logger.error("Error verifying tesseract: {}", str(e))
         result["error"] = str(e)
         return jsonify(result)
 
 @flask_app.route("/highlighted_screenshot", methods=["GET"])
 def get_highlighted_screenshot():
     """Generate and return a screenshot with OCR regions highlighted"""
+    logger.debug("Generating highlighted screenshot")
+    
     try:
         # Take a screenshot
         screenshot = ImageGrab.grab()
@@ -176,4 +208,6 @@ def get_highlighted_screenshot():
         return jsonify({"screenshot": img_base64})
     
     except Exception as e:
-        return jsonify({"error": str(e)}), 500
+        error_msg = f"Error generating highlighted screenshot: {str(e)}"
+        logger.error(error_msg)
+        return jsonify({"error": error_msg}), 500
