@@ -8,7 +8,8 @@ import sys
 sys.path.insert(0, os.path.abspath(os.path.dirname(__file__)))
 
 # Import configuration module - note we now import flask_app instead of app
-from app.config import flask_app, socketio, ocr_settings, ocr_results, settings_file, ocr_thread, stop_ocr_thread, settings_dir
+from app.config import flask_app, socketio, ocr_settings, ocr_results, settings_file, ocr_thread, stop_ocr_thread, settings_dir, status_file, macro_status
+from app.ocr.ocr_processor import perform_ocr
 
 # Import all routes to register them with Flask
 import app.routes.api
@@ -37,6 +38,25 @@ if os.path.exists(settings_file):
             print("OCR settings loaded successfully")
     except Exception as e:
         print(f"Could not load OCR settings, using defaults: {str(e)}")
+
+# Load macro status if it exists
+if os.path.exists(status_file):
+    try:
+        with open(status_file, 'r') as f:
+            saved_status = f.read().strip()
+            if saved_status in ["running", "paused", "stopped"]:
+                globals()["macro_status"] = saved_status
+                print(f"Loaded saved macro status: {macro_status}")
+                
+                # If status is running, start the OCR thread
+                if macro_status == "running":
+                    globals()["stop_ocr_thread"] = False
+                    globals()["ocr_thread"] = threading.Thread(target=perform_ocr)
+                    globals()["ocr_thread"].daemon = True
+                    globals()["ocr_thread"].start()
+                    print("Automatically restarting OCR processing thread")
+    except Exception as e:
+        print(f"Could not load saved macro status: {str(e)}")
 
 def get_local_ip():
     """Get the local IP address of this machine"""

@@ -7,10 +7,17 @@ import datetime
 from PIL import ImageGrab, Image, ImageDraw
 from flask import render_template, request, jsonify
 
-from app.config import flask_app, socketio, ocr_settings, ocr_results, macro_status, settings_file
+from app.config import flask_app, socketio, ocr_settings, ocr_results, macro_status, settings_file, status_file
 from app.config import ocr_thread, stop_ocr_thread
 from app.ocr.ocr_processor import perform_ocr, generate_highlighted_screenshot
 import pytesseract
+
+# Function to save macro status to file
+def save_macro_status(status):
+    """Save current macro status to file for persistence"""
+    with open(status_file, 'w') as f:
+        f.write(status)
+    print(f"Macro status saved: {status}")
 
 @flask_app.route("/")
 def home():
@@ -29,13 +36,31 @@ def control_macro():
         # Start the macro
         macro_status = "running"
         
-        # Start OCR processing in a separate thread if OCR is enabled
-        if ocr_settings["enabled"] and ocr_settings["regions"]:
-            stop_ocr_thread = False
+        # Save status to file
+        save_macro_status(macro_status)
+        
+        # Always start OCR processing thread when macro is started
+        stop_ocr_thread = False
+        
+        # Check if thread already exists and is alive
+        if ocr_thread is None or not ocr_thread.is_alive():
             ocr_thread = threading.Thread(target=perform_ocr)
             ocr_thread.daemon = True
             ocr_thread.start()
-            print("OCR processing started")
+            
+            if ocr_settings["enabled"]:
+                if ocr_settings["regions"]:
+                    print(f"OCR processing started with {len(ocr_settings['regions'])} region(s)")
+                else:
+                    print("OCR is enabled but no regions are defined. Define regions in OCR Settings tab.")
+                    # Send an notification to the client
+                    socketio.emit('error', {'message': "OCR is enabled but no regions are defined. Please define regions in OCR Settings tab."})
+            else:
+                print("OCR is disabled. Enable it in the OCR Settings tab to process regions.")
+                # Send an notification to the client
+                socketio.emit('error', {'message': "OCR is disabled. Enable it in the OCR Settings tab to process regions."})
+        else:
+            print("OCR thread is already running")
         
         # Emit status update via WebSocket
         socketio.emit('status_update', {'status': macro_status})
@@ -45,6 +70,9 @@ def control_macro():
     elif action == "pause":
         # Pause the macro
         macro_status = "paused"
+        
+        # Save status to file
+        save_macro_status(macro_status)
         
         # Emit status update via WebSocket
         socketio.emit('status_update', {'status': macro_status})
@@ -56,6 +84,9 @@ def control_macro():
         macro_status = "stopped"
         stop_ocr_thread = True
         print("OCR processing stopped")
+        
+        # Save status to file
+        save_macro_status(macro_status)
         
         # Emit status update via WebSocket
         socketio.emit('status_update', {'status': macro_status})

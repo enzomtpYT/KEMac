@@ -1,5 +1,6 @@
 from PIL import ImageGrab
-from app.config import socketio, ocr_results, macro_status
+import os
+from app.config import socketio, ocr_results, macro_status, status_file
 from app.ocr.ocr_processor import generate_highlighted_screenshot
 from flask_socketio import emit
 
@@ -7,9 +8,23 @@ from flask_socketio import emit
 def handle_connect():
     """Handle WebSocket client connection"""
     print('Client connected')
+    
+    # Get the current status from the status file if it exists
+    current_status = "stopped"  # Default status
+    if os.path.exists(status_file):
+        try:
+            with open(status_file, 'r') as f:
+                saved_status = f.read().strip()
+                if saved_status in ["running", "paused", "stopped"]:
+                    current_status = saved_status
+                    print(f"Sending saved status to client: {current_status}")
+        except Exception as e:
+            print(f"Error reading status file: {str(e)}")
+    
     # Send current status and data to the newly connected client
-    emit('status_update', {'status': macro_status})
+    emit('status_update', {'status': current_status})
     emit('ocr_update', {'results': ocr_results})
+    
     # If we have regions defined, send a screenshot
     try:
         screenshot = ImageGrab.grab()
@@ -26,7 +41,18 @@ def handle_disconnect():
 @socketio.on('request_status')
 def handle_request_status():
     """Send current status to client"""
-    emit('status_update', {'status': macro_status})
+    # Get the current status from the status file if it exists
+    current_status = "stopped"  # Default status
+    if os.path.exists(status_file):
+        try:
+            with open(status_file, 'r') as f:
+                saved_status = f.read().strip()
+                if saved_status in ["running", "paused", "stopped"]:
+                    current_status = saved_status
+        except Exception as e:
+            print(f"Error reading status file: {str(e)}")
+    
+    emit('status_update', {'status': current_status})
 
 @socketio.on('request_screenshot')
 def handle_request_screenshot():

@@ -36,3 +36,4 @@ stop_ocr_thread = False  # Flag to control the OCR thread
 settings_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "settings")
 os.makedirs(settings_dir, exist_ok=True)
 settings_file = os.path.join(settings_dir, "ocr_settings.json")
+status_file = os.path.join(settings_dir, "macro_status.txt")  # New file to persist macro status

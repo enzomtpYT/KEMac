@@ -60,10 +60,11 @@ function connectWebSocket() {
         renderRegionsList();
     });
     
-    // Listen for error messages
+    // Listen for error messages with enhanced display
     socket.on('error', function(data) {
         console.error('Server error:', data.message);
-        // Optionally, display this to the user
+        // Display error notification to the user
+        showNotification(data.message, 'error');
     });
 
     // Listen for webhook settings updates via WebSocket
@@ -74,6 +75,82 @@ function connectWebSocket() {
         document.getElementById('user-id').value = data.webhook.user_id || '';
         renderKeywords(data.webhook.keywords || []);
     });
+}
+
+// Show notification to user
+function showNotification(message, type = 'info') {
+    // Check if notification container exists, if not, create it
+    let notificationContainer = document.getElementById('notification-container');
+    if (!notificationContainer) {
+        notificationContainer = document.createElement('div');
+        notificationContainer.id = 'notification-container';
+        notificationContainer.style.position = 'fixed';
+        notificationContainer.style.top = '20px';
+        notificationContainer.style.left = '50%';
+        notificationContainer.style.transform = 'translateX(-50%)';
+        notificationContainer.style.zIndex = '1000';
+        notificationContainer.style.width = '80%';
+        notificationContainer.style.maxWidth = '500px';
+        document.body.appendChild(notificationContainer);
+    }
+    
+    // Create notification element
+    const notification = document.createElement('div');
+    notification.className = 'notification ' + type;
+    notification.style.padding = '12px 20px';
+    notification.style.margin = '10px 0';
+    notification.style.borderRadius = '5px';
+    notification.style.boxShadow = '0 2px 4px rgba(0,0,0,0.2)';
+    notification.style.position = 'relative';
+    notification.style.opacity = '0';
+    notification.style.transition = 'opacity 0.3s ease-in-out';
+    
+    // Style based on type
+    if (type === 'error') {
+        notification.style.backgroundColor = '#ffebee';
+        notification.style.color = '#d32f2f';
+        notification.style.border = '1px solid #ffcdd2';
+    } else {
+        notification.style.backgroundColor = '#e8f5e9';
+        notification.style.color = '#388e3c';
+        notification.style.border = '1px solid #c8e6c9';
+    }
+    
+    // Add message
+    notification.textContent = message;
+    
+    // Add close button
+    const closeButton = document.createElement('span');
+    closeButton.innerHTML = '&times;';
+    closeButton.style.position = 'absolute';
+    closeButton.style.right = '10px';
+    closeButton.style.top = '10px';
+    closeButton.style.cursor = 'pointer';
+    closeButton.style.fontWeight = 'bold';
+    closeButton.onclick = function() {
+        notificationContainer.removeChild(notification);
+    };
+    notification.appendChild(closeButton);
+    
+    // Add to container
+    notificationContainer.appendChild(notification);
+    
+    // Animate in
+    setTimeout(() => {
+        notification.style.opacity = '1';
+    }, 10);
+    
+    // Remove after 5 seconds
+    setTimeout(() => {
+        notification.style.opacity = '0';
+        setTimeout(() => {
+            try {
+                notificationContainer.removeChild(notification);
+            } catch (e) {
+                // Notification might have been manually closed
+            }
+        }, 300);
+    }, 5000);
 }
 
 // Function to update connection status display
