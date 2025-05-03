@@ -39,6 +39,9 @@ IF EXIST "%TESSPATH%\tesseract.exe" (
     echo Please run initial-setup.bat to install Tesseract OCR.
 )
 
+REM Store the current directory to return here after running the app
+SET "CURRENT_DIR=%CD%"
+
 REM Start the Python application
 echo [INFO] Starting KEMac application...
 echo.
@@ -46,8 +49,18 @@ echo Press Ctrl+C to stop the application
 echo.
 python "%~dp0app.py"
 
-REM Deactivate virtual environment when done
-call deactivate
+REM Return to the original directory
+cd /d "%CURRENT_DIR%"
+
+REM Deactivate virtual environment when done using the full path
+IF DEFINED VIRTUAL_ENV (
+    echo [INFO] Deactivating virtual environment...
+    call "%~dp0venv\Scripts\deactivate.bat"
+    IF ERRORLEVEL 1 (
+        echo [WARNING] Could not properly deactivate the virtual environment.
+        echo This is not a critical error and won't affect functionality.
+    )
+)
 
 echo.
 echo ===================================================

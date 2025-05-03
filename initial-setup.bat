@@ -102,6 +102,9 @@ REM Create necessary directories if they don't exist
 IF NOT EXIST "%~dp0settings\logs\" mkdir "%~dp0settings\logs\"
 IF NOT EXIST "%~dp0settings\debug\" mkdir "%~dp0settings\debug\"
 
+REM Store the current directory
+SET "CURRENT_DIR=%CD%"
+
 echo.
 echo ===================================================
 echo Setup completed successfully!
@@ -119,5 +122,14 @@ echo   - Network: http://[your-ip]:5000/
 echo ===================================================
 echo.
 
-call deactivate
+REM Deactivate virtual environment when done using the full path
+IF DEFINED VIRTUAL_ENV (
+    echo [INFO] Deactivating virtual environment...
+    call "%~dp0venv\Scripts\deactivate.bat"
+    IF ERRORLEVEL 1 (
+        echo [WARNING] Could not properly deactivate the virtual environment.
+        echo This is not a critical error and won't affect functionality.
+    )
+)
+
 pause
